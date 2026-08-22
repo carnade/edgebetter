@@ -13,7 +13,7 @@ import pytest
 
 from app.services.nfl_prop_grades import (
     MIN_BOOKS_FOR_CONSENSUS,
-    best_side_per_line,
+    best_bet_per_prop,
     MIN_MEANINGFUL_EDGE,
     Grade,
     GradedProp,
@@ -317,8 +317,8 @@ class TestBookCoverage:
         assert not g.line_is_outlier
 
 
-class TestBestSidePerLine:
-    """One posted line is one bet.
+class TestBestBetPerProp:
+    """One prop is one bet, however many books post it.
 
     Over and Under on the same number are the same question from opposite ends. With
     symmetric prices exactly one carries the positive edge, so listing both guarantees
@@ -333,58 +333,94 @@ class TestBestSidePerLine:
 
     def test_keeps_the_side_with_the_edge(self):
         over, under = self._pair(0.62)
-        kept = best_side_per_line([over, under])
+        kept = best_bet_per_prop([over, under])
         assert kept == [over]
 
     def test_keeps_the_under_when_the_under_is_the_bet(self):
         over, under = self._pair(0.38)
-        kept = best_side_per_line([over, under])
+        kept = best_bet_per_prop([over, under])
         assert kept == [under]
 
-    def test_halves_a_two_sided_table(self):
-        """Three distinct lines, both sides each, must collapse to three rows.
-
-        The lines have to actually differ: same player, market, book and number is one
-        bet however many times it appears, which is the whole point of the grouping.
-        """
+    def test_one_player_one_market_is_always_one_row(self):
+        """Whatever the books post -- two sides, several numbers, several books -- the
+        table gets exactly one row for the bet."""
         from dataclasses import replace
 
         rows = []
         for i, prob in enumerate((0.62, 0.58, 0.41)):
             over, under = self._pair(prob)
-            rows += [replace(over, line=60.5 + i), replace(under, line=60.5 + i)]
-        assert len(best_side_per_line(rows)) == 3
+            rows += [
+                replace(over, line=60.5 + i, book=f"book{i}"),
+                replace(under, line=60.5 + i, book=f"book{i}"),
+            ]
+        assert len(best_bet_per_prop(rows)) == 1
 
     def test_a_line_and_its_mirror_cannot_both_survive(self):
         """The specific complaint: best and worst being the same bet."""
         over, under = self._pair(0.64)
-        kept = best_side_per_line(rank([over, under]))
+        kept = best_bet_per_prop(rank([over, under]))
         assert len(kept) == 1
         assert kept[0].edge > 0
 
-    def test_different_books_are_different_bets(self):
-        """Two books on the same player is line shopping, not duplication."""
+    def test_the_same_prop_at_two_books_collapses_to_the_better_price(self):
+        """Four books used to mean four rows for one bet. The row kept is the best
+        price, so collapsing performs the line shopping rather than discarding it."""
         from dataclasses import replace
 
-        a = make(model_prob=0.60)
-        b = replace(a, book="draftkings")
-        assert len(best_side_per_line([a, b])) == 2
+        # break_even is a stored field, not derived from price_american, so a realistic
+        # pair has to set both -- exactly as grade_line does when it builds them.
+        from app.services.devig import american_to_decimal
 
-    def test_different_numbers_at_one_book_are_different_bets(self):
+        cheap = make(model_prob=0.60, price=-140)
+        rich = replace(
+            cheap,
+            book="betrivers",
+            price_american=-105,
+            break_even=1.0 / american_to_decimal(-105),
+        )
+        kept = best_bet_per_prop([cheap, rich])
+        assert len(kept) == 1
+        assert kept[0].book == "betrivers"
+        assert kept[0].edge > cheap.edge
+
+    def test_differing_numbers_collapse_to_the_softest_line(self):
+        """Books posting different numbers is the other half of line shopping."""
         from dataclasses import replace
 
-        a = make(model_prob=0.60)
-        b = replace(a, line=a.line + 1.0)
-        assert len(best_side_per_line([a, b])) == 2
+        hard = make(model_prob=0.55)
+        soft = replace(hard, book="betrivers", line=hard.line - 3.0, model_prob=0.63)
+        kept = best_bet_per_prop([hard, soft])
+        assert len(kept) == 1
+        assert kept[0].book == "betrivers"
+
+    def test_both_sides_still_gives_one_row_each_not_one_per_book(self):
+        from dataclasses import replace
+
+        # make() always builds an Over, so the Under has to be set explicitly.
+        over = make(model_prob=0.60)
+        under = replace(make(model_prob=0.40), side="Under")
+        over_b = replace(over, book="betrivers")
+        under_b = replace(under, book="betrivers")
+        kept = best_bet_per_prop([over, under, over_b, under_b], per_side=True)
+        assert len(kept) == 2
+        assert {g.side for g in kept} == {"Over", "Under"}
+
+    def test_different_markets_for_one_player_stay_separate(self):
+        """Receptions and receiving yards are different bets on the same player."""
+        from dataclasses import replace
+
+        a = make(market=Market.RECV_YDS, model_prob=0.60)
+        b = replace(a, market=Market.RECEPTIONS)
+        assert len(best_bet_per_prop([a, b])) == 2
 
     def test_order_is_preserved(self):
         """Collapsing must not reshuffle a ranking that was already sorted."""
         rows = rank([g for prob in (0.62, 0.58, 0.41) for g in self._pair(prob)])
-        kept = best_side_per_line(rows)
+        kept = best_bet_per_prop(rows)
         assert kept == sorted(kept, key=lambda g: rows.index(g))
 
     def test_empty(self):
-        assert best_side_per_line([]) == []
+        assert best_bet_per_prop([]) == []
 
 
 class TestDecimalOddsPricing:

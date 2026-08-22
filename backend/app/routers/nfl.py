@@ -748,9 +748,10 @@ def props_scan(
     search: str | None = Query(None, description="Player name, case-insensitive substring"),
     both_sides: bool = Query(
         False,
-        description="Show both Over and Under for the same line. Off by default: the two "
-        "sides of one line are the same bet read two ways, so listing both doubles the "
-        "table and puts a pick and its mirror at opposite ends of the ranking.",
+        description="Keep a row for each of Over and Under. Off by default: the two sides "
+        "of a number are the same bet read two ways, so listing both doubles the table and "
+        "puts a pick and its mirror at opposite ends of the ranking. Either way there is "
+        "only ever one row per prop -- the best price across books, never one row a book.",
     ),
     limit: int = Query(100, ge=1, le=400),
     session: Session = Depends(get_session),
@@ -765,7 +766,7 @@ def props_scan(
     """
     from collections import Counter
 
-    from app.services.nfl_prop_grades import best_side_per_line
+    from app.services.nfl_prop_grades import best_bet_per_prop
     from app.services.nfl_prop_scanner import scan_week
 
     result = scan_week(session, season=season, week=week)
@@ -782,8 +783,9 @@ def props_scan(
         needle = search.strip().lower()
         rows = [g for g in rows if needle in g.player_name.lower()]
 
-    if not both_sides:
-        rows = best_side_per_line(rows)
+    # Always one row per prop. `both_sides` decides whether Over and Under each get one,
+    # never whether every book gets one.
+    rows = best_bet_per_prop(rows, per_side=both_sides)
 
     # Grade counts describe what the filters left, not the whole slate. Showing "19 grade
     # D" above a table of 11 rows invites the reader to think something is missing.

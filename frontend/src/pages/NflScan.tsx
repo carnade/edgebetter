@@ -85,9 +85,11 @@ export function NflScan() {
           receiving and noise on passing — same method, different bar.
           <br />
           <br />
-          Only the better side of each line is listed. Over and Under on one number are the
-          same bet read from opposite ends, so showing both would put every pick's mirror
-          image at the far end of the table. Tick <strong>Both sides</strong> to see them.
+          <strong>One row per prop.</strong> A player and a market is one bet, however many
+          books post it &mdash; the row shown is the best price available, so collapsing
+          does the line shopping for you. Only the side carrying the edge is listed, since
+          Over and Under on one number are the same bet read from opposite ends. Tick{" "}
+          <strong>Both sides</strong> to see both.
           <br />
           <br />
           Yardage is right-skewed, so a player&rsquo;s <strong>50/50 point sits below his
@@ -244,10 +246,9 @@ export function NflScan() {
                       <div className="row-warn" title={p.coverage_warning}>
                         {p.books_posting <= 1
                           ? `1 book only (${p.book})`
-                          : `${p.books_posting} books · lines differ by ${num(
-                              p.line_span ?? 0,
-                              1,
-                            )}`}
+                          : `only ${p.books_posting} books posting`}
+                        {(p.line_span ?? 0) > 0 &&
+                          ` · lines differ by ${num(p.line_span ?? 0, 1)}`}
                       </div>
                     )}
                   </td>
@@ -269,7 +270,19 @@ export function NflScan() {
                       <span style={{ opacity: 0.65 }}> · avg {num(p.projected, 1)}</span>
                     </div>
                   </td>
-                  <td className="dim">{p.book}</td>
+                  <td className="dim">
+                    {p.book}
+                    {/* One row per prop, so this is the best price found, not the only
+                        one. Saying so keeps the line shopping visible after collapsing. */}
+                    {p.books_posting > 1 && (
+                      <div
+                        style={{ fontSize: 9, opacity: 0.6 }}
+                        title={`Best of ${p.books_posting} books posting this prop`}
+                      >
+                        best of {p.books_posting}
+                      </div>
+                    )}
+                  </td>
                   <td>{american(p.price_american)}</td>
                   <td className={p.edge > 0 ? "pos" : "dim"}>{pct(p.model_prob, 1)}</td>
                   <td className="dim">{pct(p.break_even, 1)}</td>

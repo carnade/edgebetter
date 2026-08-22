@@ -278,21 +278,32 @@ def grade_line(
     )
 
 
-def best_side_per_line(graded: list[GradedProp]) -> list[GradedProp]:
-    """Keep only the better side of each posted line, preserving order.
+def best_bet_per_prop(
+    graded: list[GradedProp], *, per_side: bool = False
+) -> list[GradedProp]:
+    """One row per prop, keeping the best version of it. Order is preserved.
 
-    One posted line is one bet. Over and Under on it are the same question asked from
-    opposite ends, and with symmetric prices exactly one carries the positive edge -- so
-    listing both guarantees every pick reappears near the bottom of the table as its own
-    mirror image. That is not extra information, it is the same row twice.
+    A prop is a player and a market -- "McCaffrey receptions" -- not a posting. The same
+    prop appears once per book per side, so with four books and both sides it occupies
+    eight rows of a table that is meant to be read top-down. Ranking then interleaves
+    duplicates of one bet with genuinely different ones.
 
-    Grouping is by (player, market, book, line). Two books on the same player, or one book
-    with two different numbers, stay separate: those are genuinely different bets and
-    choosing between them is line shopping, not deduplication.
+    The row kept is the one with the largest edge, which is the right answer for a bettor
+    rather than an arbitrary tie-break: across books it is the best available price, and
+    across differing numbers it is the softest line. Both are line shopping, and taking the
+    maximum performs it. `books_posting` on the surviving row still records how many books
+    were seen, so nothing about coverage is lost.
+
+    With `per_side` the Over and Under of a prop are kept separately -- still one row each
+    rather than one per book. Otherwise only the side carrying the edge survives, since the
+    two sides of a number are the same question asked from opposite ends and listing both
+    puts every pick's mirror at the far end of the ranking.
     """
     best: dict[tuple, GradedProp] = {}
     for g in graded:
-        key = (g.player_id or g.player_name, g.market.value, g.book, g.line)
+        key = (g.player_id or g.player_name, g.market.value)
+        if per_side:
+            key += (g.side,)
         current = best.get(key)
         if current is None or g.edge > current.edge:
             best[key] = g
