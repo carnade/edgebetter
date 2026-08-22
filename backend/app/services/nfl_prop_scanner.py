@@ -142,9 +142,18 @@ def scan_week(
     *,
     season: int | None = None,
     week: int | None = None,
-    markets: tuple[Market, ...] = (Market.RECV_YDS, Market.RUSH_YDS, Market.PASS_YDS),
+    markets: tuple[Market, ...] | None = None,
 ) -> ScanResult:
-    """Grade every posted prop line for a week."""
+    """Grade every posted prop line for a week.
+
+    Defaults to every market rather than a hand-written list. The list used to be spelled
+    out here, and when the count markets were added it silently kept excluding them: their
+    lines were ingested and counted in `lines_seen`, then dropped before grading, so the
+    scan showed fewer graded rows than lines with nothing to explain the difference.
+    Deriving the default from `Market` means a new market appears in the scan the moment it
+    exists.
+    """
+    markets = markets if markets is not None else tuple(Market)
     now = datetime.now(UTC)
 
     stmt = select(NflPropLine)

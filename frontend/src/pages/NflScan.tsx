@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type GradedProp } from "../lib/api";
 import { american, num, pct } from "../lib/format";
 
+// Count markets settle on integers, so their 50/50 point is one. Rendering "50/50 at 2.0"
+// next to a 2.5 line invites reading it as a yards figure.
+const COUNT_MARKETS = new Set(["receptions", "rush_att"]);
+
 const GRADE_CLASS: Record<string, string> = {
   A: "grade-a",
   B: "grade-b",
@@ -193,7 +197,11 @@ export function NflScan() {
                         over/under. Showing only the average made picks look inconsistent
                         with their own projection. */}
                     <div className="dim" style={{ fontSize: 10 }}>
-                      50/50 at {num(p.projected_median ?? p.projected, 1)}
+                      50/50 at{" "}
+                      {num(
+                        p.projected_median ?? p.projected,
+                        COUNT_MARKETS.has(p.market) ? 0 : 1,
+                      )}
                       <span style={{ opacity: 0.65 }}> · avg {num(p.projected, 1)}</span>
                     </div>
                   </td>

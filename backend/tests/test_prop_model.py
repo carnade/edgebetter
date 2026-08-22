@@ -190,3 +190,29 @@ class TestCountMarkets:
         assert prob_over_line(3.4, 2.5, dispersion=1.25, max_count=24) == pytest.approx(
             sum(dist[3:]), abs=1e-12
         )
+
+
+class TestScanCoversEveryMarket:
+    """A market that exists must be scannable, not just projectable.
+
+    The scanner's market list was hardcoded, so adding receptions and rush attempts left
+    them priced on the Props page and invisible on the Scan page. The failure was silent:
+    their lines were ingested and counted, then filtered out before grading.
+    """
+
+    def test_scan_default_is_derived_from_the_enum(self):
+        import inspect
+
+        from app.services.nfl_prop_scanner import scan_week
+
+        default = inspect.signature(scan_week).parameters["markets"].default
+        # None means "every market", resolved from Market at call time. A literal tuple
+        # here is the bug this test exists to catch.
+        assert default is None
+
+    def test_every_market_can_be_graded(self):
+        """Each market needs a calibration entry, or grade_line raises on its first line."""
+        from app.services.nfl_prop_grades import MARKET_CALIBRATION as _cal
+
+        for market in Market:
+            assert market.value in _cal
