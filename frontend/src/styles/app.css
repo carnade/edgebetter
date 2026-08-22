@@ -639,6 +639,22 @@ tbody tr:last-child td { border-bottom: none; }
 .prop-controls select:focus-visible,
 .prop-controls input:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
 
+/* The verdict at the odds you can actually get. The scan finds candidates against US
+   lines; this is where the bet is decided, since a grade belongs to one number at one
+   price rather than to a player. */
+.prop-priced {
+  display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline;
+  margin-top: 14px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 3px;
+  background: var(--bg-raised);
+}
+.prop-priced > div { display: grid; gap: 3px; }
+.prop-priced b { font-size: 17px; color: var(--text-strong); }
+.prop-priced span { font-size: 8.5px; letter-spacing: 0.15em; color: var(--muted-dim); }
+.prop-priced.grade-a { border-color: rgba(61, 220, 145, 0.45); }
+.prop-priced.grade-b { border-color: rgba(61, 220, 145, 0.26); }
+.prop-priced.grade-d { border-color: rgba(230, 110, 110, 0.28); }
+
 .prop-form {
   display: flex; align-items: center; gap: 10px;
   margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line-soft);

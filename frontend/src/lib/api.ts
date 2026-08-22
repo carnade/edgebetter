@@ -427,6 +427,14 @@ export interface PropProjection {
   prob_over?: number | null;
   prob_under?: number | null;
   implied_fair_american?: number | null;
+  fair_decimal_over?: number | null;
+  fair_decimal_under?: number | null;
+  your_price_decimal?: number | null;
+  your_side?: string | null;
+  your_break_even?: number | null;
+  your_edge?: number | null;
+  your_grade?: string | null;
+  your_reason?: string | null;
 }
 
 export interface GradedProp {
@@ -542,11 +550,20 @@ export const api = {
     get<PropCandidate[]>(
       `/nfl/props/players?market=${market}&limit=60${search ? `&search=${encodeURIComponent(search)}` : ""}`,
     ),
-  nflPropProject: (playerId: string, opponent: string, market: string, line?: number) =>
-    get<PropProjection>(
-      `/nfl/props/project?player_id=${encodeURIComponent(playerId)}&opponent=${opponent}` +
-        `&market=${market}${line != null ? `&line=${line}` : ""}`,
-    ),
+  nflPropProject: (
+    playerId: string,
+    opponent: string,
+    market: string,
+    line?: number,
+    priceDecimal?: number,
+    side?: string,
+  ) => {
+    const q = new URLSearchParams({ player_id: playerId, opponent, market });
+    if (line != null) q.set("line", String(line));
+    if (priceDecimal != null) q.set("price_decimal", String(priceDecimal));
+    if (side) q.set("side", side);
+    return get<PropProjection>(`/nfl/props/project?${q}`);
+  },
   nflMovement: (season = 2026) => get<NflClv>(`/nfl/movement?season=${season}`),
   nflPartials: () => get<NflPartials>("/nfl/partials"),
   nflSplits: (q: SplitQuery) => {

@@ -495,6 +495,18 @@ class PropProjectionOut(BaseModel):
     prob_over: float | None = None
     prob_under: float | None = None
     implied_fair_american: int | None = None
+    # Decimal as well as American. The books this gets used against quote decimal, and
+    # converting -137 to 1.73 in your head on every check is friction with no purpose.
+    fair_decimal_over: float | None = None
+    fair_decimal_under: float | None = None
+    # Set when a price is supplied: the verdict against the odds you can actually get,
+    # rather than against the US line the scan happened to find.
+    your_price_decimal: float | None = None
+    your_side: str | None = None
+    your_break_even: float | None = None
+    your_edge: float | None = None
+    your_grade: str | None = None
+    your_reason: str | None = None
 
 
 @router.get("/props/players", response_model=list[PropCandidateOut])
@@ -559,6 +571,13 @@ def prop_project(
     season: int | None = None,
     week: int = Query(18, ge=1, le=23),
     line: float | None = None,
+    price_decimal: float | None = Query(
+        None,
+        gt=1.0,
+        description="Your book's decimal odds for this line, e.g. 1.73. Graded against "
+        "the same calibration bar the scan uses.",
+    ),
+    side: str = Query("over", pattern="^(over|under|Over|Under)$"),
     is_home: bool = True,
     roof: str | None = None,
     wind: float | None = None,
@@ -607,6 +626,32 @@ def prop_project(
             else round(100 * (1 - prob_over) / prob_over)
         )
 
+    # Grade the odds you can actually get. The scan finds candidates against US lines;
+    # this is where the bet is actually decided, because a grade is specific to one number
+    # at one price -- a different line or a longer price is a different bet, not the same
+    # one somewhere else.
+    priced: dict[str, object] = {}
+    if price_decimal is not None and prob_over is not None and line is not None:
+        from app.services.devig import decimal_to_american
+        from app.services.nfl_prop_grades import grade_line
+
+        graded = grade_line(
+            projection,
+            side=side.lower(),
+            line=line,
+            price_american=decimal_to_american(price_decimal),
+            book="your book",
+        )
+        if graded is not None:
+            priced = {
+                "your_price_decimal": price_decimal,
+                "your_side": graded.side,
+                "your_break_even": round(graded.break_even, 4),
+                "your_edge": round(graded.edge, 4),
+                "your_grade": graded.grade.value,
+                "your_reason": graded.reason,
+            }
+
     return PropProjectionOut(
         player_id=projection.player_id,
         player_name=projection.player_name,
@@ -636,6 +681,11 @@ def prop_project(
         prob_over=round(prob_over, 4) if prob_over is not None else None,
         prob_under=round(1 - prob_over, 4) if prob_over is not None else None,
         implied_fair_american=fair,
+        fair_decimal_over=round(1.0 / prob_over, 3) if prob_over else None,
+        fair_decimal_under=(
+            round(1.0 / (1.0 - prob_over), 3) if prob_over is not None and prob_over < 1 else None
+        ),
+        **priced,
     )
 
 

@@ -18,11 +18,22 @@ function Form({ values }: { values: number[] }) {
   );
 }
 
+const GRADE_CLASS: Record<string, string> = {
+  A: "grade-a",
+  B: "grade-b",
+  C: "grade-c",
+  D: "grade-d",
+};
+
 export function NflProps() {
   const [market, setMarket] = useState("recv_yds");
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState("SF");
   const [line, setLine] = useState<string>("");
+  // Decimal odds, because the books this gets used against quote decimal. Optional: the
+  // fair price alone answers "is this worth betting", and the odds answer "by how much".
+  const [price, setPrice] = useState<string>("");
+  const [side, setSide] = useState("over");
 
   const { data: players } = useQuery({
     queryKey: ["nfl-prop-players", market],
@@ -31,11 +42,20 @@ export function NflProps() {
 
   const selected = playerId ?? players?.[0]?.player_id ?? null;
   const parsedLine = line.trim() === "" ? undefined : Number(line);
+  const parsedPrice = price.trim() === "" ? undefined : Number(price);
+  const validPrice = parsedPrice != null && parsedPrice > 1 ? parsedPrice : undefined;
 
   const { data: proj } = useQuery({
-    queryKey: ["nfl-prop-project", selected, opponent, market, parsedLine],
+    queryKey: ["nfl-prop-project", selected, opponent, market, parsedLine, validPrice, side],
     queryFn: () =>
-      api.nflPropProject(selected!, opponent, market, Number.isFinite(parsedLine) ? parsedLine : undefined),
+      api.nflPropProject(
+        selected!,
+        opponent,
+        market,
+        Number.isFinite(parsedLine) ? parsedLine : undefined,
+        validPrice,
+        side,
+      ),
     enabled: !!selected,
   });
 
@@ -44,9 +64,7 @@ export function NflProps() {
       <p className="eyebrow">PLAYER PROPS · YOUR LINE, OUR DISTRIBUTION</p>
       <h1 className="page-title">Props</h1>
       <p className="page-sub">
-        Bring a line from any book. This prices it from the player&rsquo;s own
-        distribution — no devigging, no second book needed.
-      </p>
+        Bring a line from any book — the scan finds candidates against US prices, but a grade belongs to one number at one price, so price it here against the odds you can actually get. No devigging, no second book needed.</p>
 
       <div className="presets" style={{ marginBottom: 10 }}>
         {MARKETS.map((m) => (
@@ -92,6 +110,24 @@ export function NflProps() {
             placeholder="69.5"
             value={line}
             onChange={(e) => setLine(e.target.value)}
+          />
+        </label>
+        <label>
+          <span>SIDE</span>
+          <select value={side} onChange={(e) => setSide(e.target.value)}>
+            <option value="over">Over</option>
+            <option value="under">Under</option>
+          </select>
+        </label>
+        <label>
+          <span>YOUR ODDS (DECIMAL)</span>
+          <input
+            type="number"
+            step="0.01"
+            min="1.01"
+            placeholder="1.95"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
           />
         </label>
       </div>
@@ -191,22 +227,54 @@ export function NflProps() {
                   <span>UNDER {proj.line}</span>
                 </div>
                 <div>
-                  <b>
-                    {proj.implied_fair_american != null
-                      ? american(proj.implied_fair_american)
-                      : "—"}
-                  </b>
-                  <span>FAIR PRICE</span>
+                  <b>{proj.fair_decimal_over != null ? proj.fair_decimal_over.toFixed(2) : "—"}</b>
+                  <span>FAIR ODDS · OVER</span>
+                </div>
+                <div>
+                  <b>{proj.fair_decimal_under != null ? proj.fair_decimal_under.toFixed(2) : "—"}</b>
+                  <span>FAIR ODDS · UNDER</span>
                 </div>
                 <p className="hint" style={{ margin: 0, flexBasis: "100%" }}>
-                  Compare that fair price with what the book offers. A shorter price than
-                  this is value; a longer one is not.
+                  Decimal, matching how your book quotes it
+                  {proj.implied_fair_american != null && (
+                    <> (over is {american(proj.implied_fair_american)} American)</>
+                  )}
+                  . Anything <strong>longer</strong> than the fair number is value; shorter
+                  is not. Enter your odds above to have it graded.
                 </p>
               </div>
             ) : (
               <p className="factor-verdict">
                 Enter a line above to price it against this distribution.
               </p>
+            )}
+
+            {proj.your_grade && (
+              <div className={`prop-priced ${GRADE_CLASS[proj.your_grade] ?? ""}`}>
+                <div>
+                  <b>{proj.your_grade}</b>
+                  <span>GRADE AT YOUR PRICE</span>
+                </div>
+                <div>
+                  <b>
+                    {proj.your_side} {proj.line} @ {proj.your_price_decimal?.toFixed(2)}
+                  </b>
+                  <span>THE BET</span>
+                </div>
+                <div>
+                  <b className={(proj.your_edge ?? 0) > 0 ? "pos" : "neg"}>
+                    {((proj.your_edge ?? 0) * 100).toFixed(1)} pts
+                  </b>
+                  <span>EDGE OVER BREAK-EVEN</span>
+                </div>
+                <div>
+                  <b>{pct(proj.your_break_even ?? 0, 1)}</b>
+                  <span>YOUR PRICE NEEDS</span>
+                </div>
+                <p className="hint" style={{ margin: 0, flexBasis: "100%" }}>
+                  {proj.your_reason}
+                </p>
+              </div>
             )}
 
             {proj.notes.length > 0 && (

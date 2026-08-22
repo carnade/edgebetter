@@ -385,3 +385,49 @@ class TestBestSidePerLine:
 
     def test_empty(self):
         assert best_side_per_line([]) == []
+
+
+class TestDecimalOddsPricing:
+    """Grading against the odds you can actually get, quoted the way your book quotes them.
+
+    The scan finds candidates against US lines, but a grade belongs to one number at one
+    price -- not to a player. A different line, or the same line at a different price, is a
+    different bet. So the decision has to be made against the book being bet with, and for
+    a European book that means decimal odds.
+    """
+
+    def test_decimal_and_american_agree_on_break_even(self):
+        from app.services.devig import american_to_decimal, decimal_to_american
+
+        for decimal in (1.5, 1.73, 1.91, 1.95, 2.0, 2.5, 3.4):
+            american = decimal_to_american(decimal)
+            # Round-tripping through American loses a little precision, since American
+            # odds are integers. Break-even must still land within a tenth of a point.
+            assert american_to_decimal(american) == pytest.approx(decimal, abs=0.02)
+
+    def test_evens_is_a_coin_flip(self):
+        from app.services.devig import decimal_to_american
+
+        g = make(model_prob=0.60, price=decimal_to_american(2.0))
+        assert g.break_even == pytest.approx(0.5, abs=0.005)
+
+    def test_a_longer_price_needs_less_to_break_even(self):
+        """The whole reason to enter your own odds: the same line at a better price is a
+        better bet, and at a worse price may be no bet at all."""
+        from app.services.devig import decimal_to_american
+
+        short = make(model_prob=0.55, price=decimal_to_american(1.60))
+        long_ = make(model_prob=0.55, price=decimal_to_american(2.10))
+        assert long_.break_even < short.break_even
+        assert long_.edge > short.edge
+
+    def test_a_bad_price_kills_a_good_projection(self):
+        """A projection that clears the bar at one price can be a D at another. This is
+        why the scan's grade cannot simply be carried to another book."""
+        from app.services.devig import decimal_to_american
+
+        generous = make(model_prob=0.58, price=decimal_to_american(2.00))
+        stingy = make(model_prob=0.58, price=decimal_to_american(1.40))
+        assert generous.grade.actionable
+        assert stingy.edge < 0
+        assert stingy.grade is Grade.D
