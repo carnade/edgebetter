@@ -2,25 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { american, num, pct, signedPct } from "../lib/format";
+import { MARKETS, marketDef, NFL_TEAMS as TEAMS } from "../lib/markets";
 
-// Each market carries its own labels. The volume and efficiency tiles mean different
-// things across markets — for receptions the efficiency term is catch rate, and for rush
-// attempts there is none at all, because the market IS the volume.
-const MARKETS = [
-  { key: "recv_yds", label: "Receiving yards", volume: "TARGETS", per: "YDS EACH", counts: false },
-  { key: "rush_yds", label: "Rushing yards", volume: "CARRIES", per: "YDS EACH", counts: false },
-  { key: "pass_yds", label: "Passing yards", volume: "ATTEMPTS", per: "YDS EACH", counts: false },
-  { key: "receptions", label: "Receptions", volume: "TARGETS", per: "CATCH RATE", counts: true },
-  { key: "rush_att", label: "Rush attempts", volume: "CARRIES", per: null, counts: true },
-];
-
-const marketConfig = (key: string) => MARKETS.find((m) => m.key === key) ?? MARKETS[0];
-
-const TEAMS = [
-  "ARI","ATL","BAL","BUF","CAR","CHI","CIN","CLE","DAL","DEN","DET","GB","HOU","IND",
-  "JAX","KC","LA","LAC","LV","MIA","MIN","NE","NO","NYG","NYJ","PHI","PIT","SEA","SF",
-  "TB","TEN","WAS",
-];
 
 /** Recent games as bars, so a projection can be sanity-checked against reality. */
 function Form({ values }: { values: number[] }) {
@@ -140,7 +123,7 @@ export function NflProps() {
                 <b>
                   {num(
                     proj.expected_median ?? proj.expected,
-                    marketConfig(market).counts ? 0 : 1,
+                    marketDef(market).counts ? 0 : 1,
                   )}
                 </b>
                 <span>50/50 POINT</span>
@@ -151,14 +134,14 @@ export function NflProps() {
               </div>
               <div>
                 <b>{num(proj.projected_volume, 1)}</b>
-                <span>{marketConfig(market).volume}</span>
+                <span>{marketDef(market).volume}</span>
               </div>
               {/* Rush attempts has no efficiency term — the market is the volume, so the
                   ratio is always 1.0 and showing it would be noise. */}
-              {marketConfig(market).per && (
+              {marketDef(market).per && (
                 <div>
                   <b>{num(proj.projected_efficiency, 2)}</b>
-                  <span>{marketConfig(market).per}</span>
+                  <span>{marketDef(market).per}</span>
                 </div>
               )}
               <div>

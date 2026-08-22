@@ -541,6 +541,35 @@ tbody tr:last-child td { border-bottom: none; }
   background: rgba(61, 220, 145, 0.08);
 }
 
+/* Scan filters. The table is small today and will be several thousand rows once every
+   book posts five markets across a full slate, so narrowing it is the primary control,
+   not an accessory. */
+.scan-filters { margin-bottom: 14px; }
+.scan-filters .presets { margin-bottom: 8px; }
+.scan-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scan-filter-row select,
+.scan-filter-row input[type="search"] {
+  font-family: var(--mono); font-size: 11px; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--line);
+  border-radius: 2px; padding: 5px 8px;
+}
+.scan-filter-row select { min-width: 128px; }
+.scan-filter-row input[type="search"] { min-width: 130px; }
+.scan-filter-row select:focus-visible,
+.scan-filter-row input:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+
+.scan-toggle {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 10.5px; letter-spacing: 0.04em; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 2px; padding: 5px 9px;
+}
+.scan-toggle:hover { color: var(--text); border-color: rgba(160, 255, 205, 0.24); }
+.scan-toggle input { accent-color: var(--green); margin: 0; }
+.scan-toggle:has(input:checked) {
+  color: var(--green-bright); border-color: rgba(61, 220, 145, 0.42);
+  background: rgba(61, 220, 145, 0.08);
+}
+
 .split-head {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 12px; margin-bottom: 10px; flex-wrap: wrap;

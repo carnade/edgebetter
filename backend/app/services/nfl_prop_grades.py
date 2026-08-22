@@ -278,6 +278,28 @@ def grade_line(
     )
 
 
+def best_side_per_line(graded: list[GradedProp]) -> list[GradedProp]:
+    """Keep only the better side of each posted line, preserving order.
+
+    One posted line is one bet. Over and Under on it are the same question asked from
+    opposite ends, and with symmetric prices exactly one carries the positive edge -- so
+    listing both guarantees every pick reappears near the bottom of the table as its own
+    mirror image. That is not extra information, it is the same row twice.
+
+    Grouping is by (player, market, book, line). Two books on the same player, or one book
+    with two different numbers, stay separate: those are genuinely different bets and
+    choosing between them is line shopping, not deduplication.
+    """
+    best: dict[tuple, GradedProp] = {}
+    for g in graded:
+        key = (g.player_id or g.player_name, g.market.value, g.book, g.line)
+        current = best.get(key)
+        if current is None or g.edge > current.edge:
+            best[key] = g
+    keep = {id(g) for g in best.values()}
+    return [g for g in graded if id(g) in keep]
+
+
 def rank(graded: list[GradedProp]) -> list[GradedProp]:
     """Best first: grade, then how far past the bar the edge sits.
 

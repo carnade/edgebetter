@@ -13,6 +13,7 @@ import pytest
 
 from app.services.nfl_prop_grades import (
     MIN_BOOKS_FOR_CONSENSUS,
+    best_side_per_line,
     MIN_MEANINGFUL_EDGE,
     Grade,
     GradedProp,
@@ -314,3 +315,73 @@ class TestBookCoverage:
         """One book cannot be an outlier from itself."""
         g = make(books_posting=1, median_line=None)
         assert not g.line_is_outlier
+
+
+class TestBestSidePerLine:
+    """One posted line is one bet.
+
+    Over and Under on the same number are the same question from opposite ends. With
+    symmetric prices exactly one carries the positive edge, so listing both guarantees
+    every pick reappears at the far end of the ranking as its own mirror -- which is how
+    the same player ended up both best and second-worst on a 13-row scan.
+    """
+
+    def _pair(self, prob_over, **kw):
+        over = make(model_prob=prob_over, **kw)
+        under = make(model_prob=1 - prob_over, **kw)
+        return over, under
+
+    def test_keeps_the_side_with_the_edge(self):
+        over, under = self._pair(0.62)
+        kept = best_side_per_line([over, under])
+        assert kept == [over]
+
+    def test_keeps_the_under_when_the_under_is_the_bet(self):
+        over, under = self._pair(0.38)
+        kept = best_side_per_line([over, under])
+        assert kept == [under]
+
+    def test_halves_a_two_sided_table(self):
+        """Three distinct lines, both sides each, must collapse to three rows.
+
+        The lines have to actually differ: same player, market, book and number is one
+        bet however many times it appears, which is the whole point of the grouping.
+        """
+        from dataclasses import replace
+
+        rows = []
+        for i, prob in enumerate((0.62, 0.58, 0.41)):
+            over, under = self._pair(prob)
+            rows += [replace(over, line=60.5 + i), replace(under, line=60.5 + i)]
+        assert len(best_side_per_line(rows)) == 3
+
+    def test_a_line_and_its_mirror_cannot_both_survive(self):
+        """The specific complaint: best and worst being the same bet."""
+        over, under = self._pair(0.64)
+        kept = best_side_per_line(rank([over, under]))
+        assert len(kept) == 1
+        assert kept[0].edge > 0
+
+    def test_different_books_are_different_bets(self):
+        """Two books on the same player is line shopping, not duplication."""
+        from dataclasses import replace
+
+        a = make(model_prob=0.60)
+        b = replace(a, book="draftkings")
+        assert len(best_side_per_line([a, b])) == 2
+
+    def test_different_numbers_at_one_book_are_different_bets(self):
+        from dataclasses import replace
+
+        a = make(model_prob=0.60)
+        b = replace(a, line=a.line + 1.0)
+        assert len(best_side_per_line([a, b])) == 2
+
+    def test_order_is_preserved(self):
+        """Collapsing must not reshuffle a ranking that was already sorted."""
+        rows = rank([g for prob in (0.62, 0.58, 0.41) for g in self._pair(prob)])
+        kept = best_side_per_line(rows)
+        assert kept == sorted(kept, key=lambda g: rows.index(g))
+
+    def test_empty(self):
+        assert best_side_per_line([]) == []

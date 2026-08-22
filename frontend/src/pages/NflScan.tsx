@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, type GradedProp } from "../lib/api";
 import { american, num, pct } from "../lib/format";
-
-// Count markets settle on integers, so their 50/50 point is one. Rendering "50/50 at 2.0"
-// next to a 2.5 line invites reading it as a yards figure.
-const COUNT_MARKETS = new Set(["receptions", "rush_att"]);
+import { MARKETS, isCountMarket, NFL_TEAMS } from "../lib/markets";
 
 const GRADE_CLASS: Record<string, string> = {
   A: "grade-a",
@@ -51,10 +48,20 @@ function EdgeBar({ p }: { p: GradedProp }) {
 
 export function NflScan() {
   const [minGrade, setMinGrade] = useState("D");
+  const [market, setMarket] = useState("");
+  const [team, setTeam] = useState("");
+  const [search, setSearch] = useState("");
+  // Both sides off by default. One posted line is one bet, and Over/Under on it are the
+  // same question from opposite ends -- showing both doubles the table and puts every
+  // pick's mirror image at the far end of the ranking.
+  const [bothSides, setBothSides] = useState(false);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["nfl-scan", minGrade],
-    queryFn: () => api.nflPropScan(1, minGrade),
+    queryKey: ["nfl-scan", minGrade, market, team, search, bothSides],
+    queryFn: () => api.nflPropScan(1, minGrade, { market, team, search, bothSides }),
   });
+
+  const filtered = Boolean(market || team || search);
 
   if (isLoading) return <div className="loading">SCANNING SLATE</div>;
 
@@ -65,16 +72,22 @@ export function NflScan() {
       <p className="eyebrow">EVERY POSTED LINE, GRADED</p>
       <h1 className="page-title">Scan</h1>
       <p className="page-sub">
-        All three markets, identical analysis. What differs is the bar an edge must clear.
+        Every market, identical analysis. What differs is the bar an edge must clear.
       </p>
 
       <div className="factor glass" style={{ marginBottom: 14 }}>
         <h3>How the grade works</h3>
         <p className="hint" style={{ marginBottom: 12 }}>
           An edge only counts if it beats our own measured error. Replayed over five
-          seasons, receiving yards are accurate to <strong>1.9 points</strong>, rushing to{" "}
-          <strong>2.6</strong>, passing to <strong>3.6</strong>. So the same +3 point edge
-          is a real signal on receiving and noise on passing — same method, different bar.
+          seasons, receiving yards are accurate to <strong>2.0 points</strong>, rushing to{" "}
+          <strong>2.7</strong>, receptions and rush attempts to <strong>2.8</strong>, and
+          passing to <strong>3.6</strong>. So the same +3 point edge is a real signal on
+          receiving and noise on passing — same method, different bar.
+          <br />
+          <br />
+          Only the better side of each line is listed. Over and Under on one number are the
+          same bet read from opposite ends, so showing both would put every pick's mirror
+          image at the far end of the table. Tick <strong>Both sides</strong> to see them.
           <br />
           <br />
           Yardage is right-skewed, so a player&rsquo;s <strong>50/50 point sits below his
@@ -126,21 +139,72 @@ export function NflScan() {
         </div>
       )}
 
-      <div className="presets" style={{ marginBottom: 12 }}>
-        {[
-          { key: "A", label: "A only" },
-          { key: "B", label: "A and B" },
-          { key: "C", label: "Down to C" },
-          { key: "D", label: "Everything" },
-        ].map((o) => (
-          <button
-            key={o.key}
-            className={`preset${minGrade === o.key ? " active" : ""}`}
-            onClick={() => setMinGrade(o.key)}
-          >
-            {o.label}
-          </button>
-        ))}
+      <div className="scan-filters">
+        <div className="presets">
+          {[
+            { key: "A", label: "A only" },
+            { key: "B", label: "A and B" },
+            { key: "C", label: "Down to C" },
+            { key: "D", label: "Everything" },
+          ].map((o) => (
+            <button
+              key={o.key}
+              className={`preset${minGrade === o.key ? " active" : ""}`}
+              onClick={() => setMinGrade(o.key)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="scan-filter-row">
+          <select value={market} onChange={(e) => setMarket(e.target.value)}>
+            <option value="">All markets</option>
+            {MARKETS.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+
+          <select value={team} onChange={(e) => setTeam(e.target.value)}>
+            <option value="">Any team</option>
+            {NFL_TEAMS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="search"
+            placeholder="Player name"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <label className="scan-toggle" title="Show the losing side of each line as well. Off by default: it is the same bet read backwards.">
+            <input
+              type="checkbox"
+              checked={bothSides}
+              onChange={(e) => setBothSides(e.target.checked)}
+            />
+            Both sides
+          </label>
+
+          {filtered && (
+            <button
+              className="preset"
+              onClick={() => {
+                setMarket("");
+                setTeam("");
+                setSearch("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {!data?.props.length ? (
@@ -200,7 +264,7 @@ export function NflScan() {
                       50/50 at{" "}
                       {num(
                         p.projected_median ?? p.projected,
-                        COUNT_MARKETS.has(p.market) ? 0 : 1,
+                        isCountMarket(p.market) ? 0 : 1,
                       )}
                       <span style={{ opacity: 0.65 }}> · avg {num(p.projected, 1)}</span>
                     </div>

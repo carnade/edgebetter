@@ -525,8 +525,19 @@ export const api = {
       `/nfl/schedule?season=${season}${week ? `&week=${week}` : ""}&project=${project}`,
     ),
   nflQbImpact: () => get<NflQbImpact>("/nfl/qb-impact"),
-  nflPropScan: (week?: number, minGrade = "D") =>
-    get<PropScan>(`/nfl/props/scan?min_grade=${minGrade}${week ? `&week=${week}` : ""}&limit=150`),
+  nflPropScan: (
+    week?: number,
+    minGrade = "D",
+    opts: { market?: string; team?: string; search?: string; bothSides?: boolean } = {},
+  ) => {
+    const q = new URLSearchParams({ min_grade: minGrade, limit: "300" });
+    if (week) q.set("week", String(week));
+    if (opts.market) q.set("market", opts.market);
+    if (opts.team) q.set("team", opts.team);
+    if (opts.search) q.set("search", opts.search);
+    if (opts.bothSides) q.set("both_sides", "true");
+    return get<PropScan>(`/nfl/props/scan?${q}`);
+  },
   nflPropPlayers: (market: string, search = "") =>
     get<PropCandidate[]>(
       `/nfl/props/players?market=${market}&limit=60${search ? `&search=${encodeURIComponent(search)}` : ""}`,

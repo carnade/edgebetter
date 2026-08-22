@@ -693,28 +693,59 @@ def props_scan(
     season: int | None = None,
     week: int | None = None,
     min_grade: str = Query("D", pattern="^[ABCD]$"),
+    market: str | None = Query(None, description="Restrict to one market key"),
+    team: str | None = Query(None, description="Player's team or opponent, e.g. SEA"),
+    search: str | None = Query(None, description="Player name, case-insensitive substring"),
+    both_sides: bool = Query(
+        False,
+        description="Show both Over and Under for the same line. Off by default: the two "
+        "sides of one line are the same bet read two ways, so listing both doubles the "
+        "table and puts a pick and its mirror at opposite ends of the ranking.",
+    ),
     limit: int = Query(100, ge=1, le=400),
     session: Session = Depends(get_session),
 ) -> ScanOut:
     """Grade every posted prop line for a week, best first.
 
-    All three markets get identical treatment. They differ only in the bar an edge must
-    clear, which is that market's own measured calibration error.
+    Every market gets identical treatment. They differ only in the bar an edge must clear,
+    which is that market's own measured calibration error.
+
+    Filters apply before `limit`, so narrowing the scan surfaces more of what matches
+    rather than returning a truncated slice of everything.
     """
     from collections import Counter
 
+    from app.services.nfl_prop_grades import best_side_per_line
     from app.services.nfl_prop_scanner import scan_week
 
     result = scan_week(session, season=season, week=week)
     order = {"A": 0, "B": 1, "C": 2, "D": 3}
     cutoff = order[min_grade]
-    rows = [g for g in result.graded if order[g.grade.value] <= cutoff][:limit]
+    rows = [g for g in result.graded if order[g.grade.value] <= cutoff]
+
+    if market:
+        rows = [g for g in rows if g.market.value == market]
+    if team:
+        wanted = team.strip().upper()
+        rows = [g for g in rows if wanted in ((g.team or "").upper(), g.opponent.upper())]
+    if search:
+        needle = search.strip().lower()
+        rows = [g for g in rows if needle in g.player_name.lower()]
+
+    if not both_sides:
+        rows = best_side_per_line(rows)
+
+    # Grade counts describe what the filters left, not the whole slate. Showing "19 grade
+    # D" above a table of 11 rows invites the reader to think something is missing.
+    grade_counts = Counter(g.grade.value for g in rows)
+    shown_after_filters = len(rows)
+    rows = rows[:limit]
 
     return ScanOut(
         season=result.season,
         week=result.week,
         lines_seen=result.lines_seen,
-        graded_count=len(result.graded),
+        graded_count=shown_after_filters,
         actionable_count=len(result.actionable),
         players_without_history=result.players_without_history,
         one_sided_warning=result.one_sided_warning,
@@ -722,7 +753,7 @@ def props_scan(
         missing_games_warning=result.missing_games_warning,
         games_in_week=result.games_in_week,
         games_with_lines=result.games_with_lines,
-        grade_counts=dict(Counter(g.grade.value for g in result.graded)),
+        grade_counts=dict(grade_counts),
         props=[
             GradedPropOut(
                 player_name=g.player_name,
