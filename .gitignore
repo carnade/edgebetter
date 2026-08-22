@@ -21,6 +21,9 @@ dist/
 
 # Data / runtime
 pgdata/
+# Re-downloadable nflverse release assets. Cache-first by design, so a clone simply
+# refetches what it needs rather than carrying megabytes of derivable data in git.
+.nflverse_cache/
 *.sqlite
 *.db
 .backfill_state.json

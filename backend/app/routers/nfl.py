@@ -667,6 +667,9 @@ class GradedPropOut(BaseModel):
     recent_yards: list[float] = []
     recent_over: int = 0
     recent_counted: int = 0
+    books_posting: int = 1
+    line_span: float | None = None
+    coverage_warning: str | None = None
 
 
 class ScanOut(BaseModel):
@@ -677,6 +680,7 @@ class ScanOut(BaseModel):
     actionable_count: int
     players_without_history: int
     one_sided_warning: str | None = None
+    coverage_warning: str | None = None
     grade_counts: dict[str, int] = {}
     props: list[GradedPropOut] = []
 
@@ -711,6 +715,7 @@ def props_scan(
         actionable_count=len(result.actionable),
         players_without_history=result.players_without_history,
         one_sided_warning=result.one_sided_warning,
+        coverage_warning=result.coverage_warning,
         grade_counts=dict(Counter(g.grade.value for g in result.graded)),
         props=[
             GradedPropOut(
@@ -737,6 +742,9 @@ def props_scan(
                 grade=g.grade.value,
                 grade_description=g.grade.description,
                 reason=g.reason,
+                books_posting=g.books_posting,
+                line_span=round(g.line_span, 1) if g.line_span is not None else None,
+                coverage_warning=g.coverage_warning,
                 games_of_history=g.games_of_history,
                 band=g.band.value,
                 calibration=g.calibration,

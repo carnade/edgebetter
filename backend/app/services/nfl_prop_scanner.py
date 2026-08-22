@@ -12,6 +12,7 @@ must clear, which is set by that market's measured calibration error -- see
 from __future__ import annotations
 
 import logging
+import statistics
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -74,6 +75,34 @@ class ScanResult:
             f"until the season provides a track record."
         )
 
+    @property
+    def thin_coverage(self) -> list[GradedProp]:
+        """Actionable picks carrying a coverage warning."""
+        return [g for g in self.actionable if g.coverage_warning is not None]
+
+    @property
+    def coverage_warning(self) -> str | None:
+        """Flag a slate where most actionable picks rest on a single book.
+
+        Worth saying once at the top rather than only per row: if every pick comes from one
+        book, the scan is measuring that book rather than the market, and no amount of
+        per-row labelling makes that obvious at a glance.
+        """
+        picks = self.actionable
+        if not picks:
+            return None
+        thin = [g for g in picks if g.books_posting <= 1]
+        if len(thin) < max(3, len(picks) * 0.6):
+            return None
+        books = {g.book for g in thin}
+        only = f"only {next(iter(books))}" if len(books) == 1 else f"{len(books)} books"
+        return (
+            f"{len(thin)} of {len(picks)} actionable picks come from a single book "
+            f"({only}). Player props are often posted by one book days before the rest of "
+            f"the market, so this is normal early in the week -- but until other books "
+            f"post, nothing is cross-checking these numbers."
+        )
+
     def summary(self) -> str:
         by_grade: dict[str, int] = defaultdict(int)
         for g in self.graded:
@@ -113,6 +142,17 @@ def scan_week(
             line.bookmaker, line.outcome, line.point,
         )
         latest.setdefault(key, line)
+
+    # How many books posted each prop, and where they set it. A prop is graded from one
+    # book quite happily -- this exists so a line no other book agrees with can be
+    # labelled rather than silently ranked alongside a well-covered one.
+    books_by_prop: dict[tuple, set[str]] = defaultdict(set)
+    points_by_side: dict[tuple, list[float]] = defaultdict(list)
+    for line in latest.values():
+        books_by_prop[(line.game_id, line.market, line.player_name)].add(line.bookmaker)
+        points_by_side[
+            (line.game_id, line.market, line.player_name, line.outcome)
+        ].append(line.point)
 
     games = {
         g.game_id: g
@@ -172,12 +212,22 @@ def scan_week(
             missing.add(line.player_name)
             continue
 
+        books = books_by_prop[(line.game_id, line.market, line.player_name)]
+        points = points_by_side[
+            (line.game_id, line.market, line.player_name, line.outcome)
+        ]
+        span = (max(points) - min(points)) if len(points) > 1 else None
+        median_point = statistics.median(points) if len(points) > 1 else None
+
         result = grade_line(
             projection,
             side=line.outcome,
             line=line.point,
             price_american=line.price_american,
             book=line.bookmaker,
+            books_posting=len(books),
+            line_span=span,
+            median_line=median_point,
         )
         if result is not None:
             graded.append(result)

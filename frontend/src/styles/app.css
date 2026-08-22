@@ -650,6 +650,22 @@ tbody tr:last-child td { border-bottom: none; }
 .row-reason {
   font-size: 9.5px; color: var(--muted-dim); margin-top: 3px;
   max-width: 260px; line-height: 1.4;
+  /* tbody td sets white-space: nowrap for the numeric columns, and the reason inherits
+     it -- so max-width could never take effect and the longest reasons (grade A, which
+     names both the edge and the bar) ran straight across the market column. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Thin book coverage. Amber rather than red: the prop is still graded and still worth
+   reading -- this only says the line itself has not been cross-checked against another
+   book, which is common early in a week before the rest of the market posts. */
+.row-warn {
+  display: inline-block; margin-top: 4px; white-space: normal;
+  font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid rgba(240,180,90,0.32);
+  background: rgba(240,180,90,0.08);
+  padding: 1px 5px; border-radius: 2px; cursor: help;
 }
 
 /* Recent games against this line: the fastest sanity check on a probability. */

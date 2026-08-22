@@ -457,6 +457,9 @@ export interface GradedProp {
   recent_yards: number[];
   recent_over: number;
   recent_counted: number;
+  books_posting: number;
+  line_span?: number | null;
+  coverage_warning?: string | null;
 }
 
 export interface PropScan {
@@ -467,6 +470,7 @@ export interface PropScan {
   actionable_count: number;
   players_without_history: number;
   one_sided_warning?: string | null;
+  coverage_warning?: string | null;
   grade_counts: Record<string, number>;
   props: GradedProp[];
 }

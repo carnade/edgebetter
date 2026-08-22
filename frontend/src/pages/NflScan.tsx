@@ -108,6 +108,13 @@ export function NflScan() {
         </div>
       )}
 
+      {data?.coverage_warning && (
+        <div className="banner warn">
+          <span className="banner-key">THIN COVERAGE</span>
+          <span>{data.coverage_warning}</span>
+        </div>
+      )}
+
       <div className="presets" style={{ marginBottom: 12 }}>
         {[
           { key: "A", label: "A only" },
@@ -158,6 +165,16 @@ export function NflScan() {
                       {p.team} vs {p.opponent} · {p.games_of_history} games
                     </div>
                     <div className="row-reason">{p.reason}</div>
+                    {p.coverage_warning && (
+                      <div className="row-warn" title={p.coverage_warning}>
+                        {p.books_posting <= 1
+                          ? `1 book only (${p.book})`
+                          : `${p.books_posting} books · lines differ by ${num(
+                              p.line_span ?? 0,
+                              1,
+                            )}`}
+                      </div>
+                    )}
                   </td>
                   <td className="dim">
                     {p.market_label.replace(" yards", "")}

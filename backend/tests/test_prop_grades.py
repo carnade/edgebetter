@@ -12,6 +12,7 @@ grades higher than it once did -- that is the model earning it, not the bar bein
 import pytest
 
 from app.services.nfl_prop_grades import (
+    MIN_BOOKS_FOR_CONSENSUS,
     MIN_MEANINGFUL_EDGE,
     Grade,
     GradedProp,
@@ -27,6 +28,9 @@ def make(
     price=-110,
     games=17,
     band=Band.MEANINGFUL,
+    books_posting=1,
+    line_span=None,
+    median_line=None,
 ) -> GradedProp:
     _, gap, _ = MARKET_CALIBRATION[market.value]
     from app.services.devig import american_to_decimal
@@ -49,6 +53,9 @@ def make(
         band=band,
         calibration_gap=gap,
         calibration="validated",
+        books_posting=books_posting,
+        line_span=line_span,
+        median_line=median_line,
     )
 
 
@@ -217,3 +224,54 @@ class TestDistributionShape:
         assert p.median < p.expected
         # A line at the mean is therefore an under more often than not.
         assert p.prob_over(p.expected) < 0.5
+
+
+class TestBookCoverage:
+    """Thin coverage warns; it never changes the grade.
+
+    This is deliberately not the MLB four-book rule. There, a fair probability is the
+    median across books and too few books makes it meaningless. Here the probability comes
+    from the player's own distribution, so one book is enough to grade against -- a second
+    book only checks the NUMBER. So a thin prop is shown, graded, and labelled.
+    """
+
+    def test_single_book_warns(self):
+        g = make(books_posting=1)
+        assert g.coverage_warning is not None
+        assert "Only fanduel" in g.coverage_warning
+
+    def test_thin_coverage_warns(self):
+        g = make(books_posting=MIN_BOOKS_FOR_CONSENSUS - 1)
+        assert g.coverage_warning is not None
+        assert "Thin agreement" in g.coverage_warning
+
+    def test_good_coverage_is_silent(self):
+        """No badge when there is nothing to say."""
+        assert make(books_posting=MIN_BOOKS_FOR_CONSENSUS).coverage_warning is None
+        assert make(books_posting=8).coverage_warning is None
+
+    def test_coverage_never_changes_the_grade(self):
+        """The whole point: a thin prop is still ranked on its merits."""
+        thin = make(model_prob=0.60, books_posting=1)
+        covered = make(model_prob=0.60, books_posting=9)
+        assert thin.grade is covered.grade is Grade.A
+        assert thin.edge == covered.edge
+        assert rank([thin, covered])[0].grade is Grade.A
+
+    def test_outlier_line_is_called_out(self):
+        """A book posting 69.5 while the market sits at 60.5 is the dangerous case:
+        the edge is against that book's quirk, not against the market."""
+        g = make(books_posting=4, median_line=60.5)
+        assert g.line == 69.5
+        assert g.line_is_outlier
+        assert "check for late news" in (g.coverage_warning or "")
+
+    def test_line_near_the_median_is_not_an_outlier(self):
+        g = make(books_posting=4, median_line=69.0)
+        assert not g.line_is_outlier
+        assert g.coverage_warning is None
+
+    def test_outlier_needs_something_to_compare_against(self):
+        """One book cannot be an outlier from itself."""
+        g = make(books_posting=1, median_line=None)
+        assert not g.line_is_outlier

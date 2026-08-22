@@ -38,6 +38,26 @@ MIN_MEANINGFUL_EDGE = 0.02
 # How far past our measured error an edge must sit to earn the top grade.
 STRONG_MULTIPLE = 2.0
 
+# Below this many books posting the same prop, the LINE has not been cross-checked.
+#
+# This is not the MLB devig rule and does not work the same way. There, four books are a
+# hard requirement, because a fair probability is the median across books and a median of
+# two is meaningless. Here the probability comes from the player's own distribution, so one
+# book is genuinely enough to grade against -- what a second book buys is a check on the
+# *number*, not the maths.
+#
+# The risk a lone book carries is specific: if it has posted a line the rest of the market
+# would not, our edge is measured against that book's quirk rather than against the market.
+# There is no way to tell those apart from one quote. So a thin prop is still shown and
+# still graded -- it is just labelled, and the reader decides.
+MIN_BOOKS_FOR_CONSENSUS = 3
+
+# How far one book's line may sit from the median before it is called an outlier. Books
+# rarely differ by more than a point or two on the same player; a wider gap usually means
+# one of them knows something (an injury, a snap-count report) that has not reached the
+# others yet.
+OUTLIER_LINE_YARDS = 2.5
+
 
 class Grade(str, Enum):
     A = "A"
@@ -86,6 +106,12 @@ class GradedProp:
     # against what actually happened rather than taking a probability on trust.
     recent_yards: tuple[float, ...] = ()
 
+    # How many books posted this prop at all, and how far apart their lines were. Used
+    # only to warn -- neither one changes the grade.
+    books_posting: int = 1
+    line_span: float | None = None
+    median_line: float | None = None
+
     @property
     def recent_vs_line(self) -> tuple[int, int]:
         """(games over the line, games counted) among the recent games shown."""
@@ -107,6 +133,40 @@ class GradedProp:
     def edge_ratio(self) -> float:
         """How many times over the bar the edge sits. Below 1.0 is inside our error."""
         return self.edge / self.required_edge if self.required_edge > 0 else 0.0
+
+    @property
+    def line_is_outlier(self) -> bool:
+        """Whether this book's number sits well away from what the others posted."""
+        if self.median_line is None or self.books_posting < 2:
+            return False
+        return abs(self.line - self.median_line) > OUTLIER_LINE_YARDS
+
+    @property
+    def coverage_warning(self) -> str | None:
+        """Why this line may not be trustworthy, independent of the grade.
+
+        Returns None when coverage is fine, so the UI can show a badge only when there is
+        something to say.
+        """
+        if self.line_is_outlier:
+            direction = "above" if self.line > (self.median_line or 0) else "below"
+            return (
+                f"{self.book} has this {abs(self.line - (self.median_line or 0)):.1f} "
+                f"yards {direction} the other {self.books_posting - 1} book"
+                f"{'s' if self.books_posting > 2 else ''}. Our edge may be against this "
+                f"book's number rather than the market's -- check for late news."
+            )
+        if self.books_posting <= 1:
+            return (
+                f"Only {self.book} is posting this line. The projection does not need a "
+                f"second book, but nothing here cross-checks the number itself."
+            )
+        if self.books_posting < MIN_BOOKS_FOR_CONSENSUS:
+            return (
+                f"Only {self.books_posting} books posting. Thin agreement -- the line has "
+                f"had little cross-checking."
+            )
+        return None
 
     @property
     def expected_value(self) -> float:
@@ -161,6 +221,9 @@ def grade_line(
     line: float,
     price_american: int,
     book: str,
+    books_posting: int = 1,
+    line_span: float | None = None,
+    median_line: float | None = None,
 ) -> GradedProp | None:
     """Grade one side of one posted line against a projection."""
     prob_over = projection.prob_over(line)
@@ -194,6 +257,9 @@ def grade_line(
         calibration_gap=gap,
         calibration=calibration.value,
         recent_yards=tuple(projection.recent_yards[-6:]),
+        books_posting=books_posting,
+        line_span=line_span,
+        median_line=median_line,
     )
 
 
