@@ -38,6 +38,21 @@ MIN_MEANINGFUL_EDGE = 0.02
 # How far past our measured error an edge must sit to earn the top grade.
 STRONG_MULTIPLE = 2.0
 
+# Minimum games of history before a prop can earn an actionable grade.
+#
+# Four is low enough that a genuinely thin sample can reach grade A, and that is the
+# intended trade. A higher floor would be safer per-pick and blank out the first month of
+# every season -- precisely when a changed role is most worth catching and least
+# established. Four means coverage from about week four onward.
+#
+# The cost is real: a rookie with four games can produce a double-digit edge that is a
+# small-sample artifact rather than a signal. The mitigation is display, not filtering --
+# every row shows its games count and sample band so a thin pick is visible as thin, and
+# can be judged on the player rather than rejected by a rule.
+#
+# Raise this and early-season coverage disappears; that is the decision being made here.
+MIN_GAMES_FOR_GRADE = 4
+
 # Below this many books posting the same prop, the LINE has not been cross-checked.
 #
 # This is not the MLB devig rule and does not work the same way. There, four books are a
@@ -176,7 +191,7 @@ class GradedProp:
     @property
     def grade(self) -> Grade:
         # A thin sample cannot earn an actionable grade whatever the numbers say.
-        if self.band is Band.NOISE or self.games_of_history < 4:
+        if self.band is Band.NOISE or self.games_of_history < MIN_GAMES_FOR_GRADE:
             return Grade.C if self.edge > 0 else Grade.D
         if self.edge <= 0:
             return Grade.D
@@ -192,7 +207,7 @@ class GradedProp:
         edge_pts = self.edge * 100
         bar_pts = self.required_edge * 100
 
-        if self.band is Band.NOISE or self.games_of_history < 4:
+        if self.band is Band.NOISE or self.games_of_history < MIN_GAMES_FOR_GRADE:
             return (
                 f"only {self.games_of_history} games of history -- not enough to grade "
                 f"regardless of the number"

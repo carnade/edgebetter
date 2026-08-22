@@ -137,6 +137,17 @@ class TestGrading:
         assert not g.grade.actionable
         assert "games of history" in g.reason
 
+    def test_four_games_is_deliberately_enough(self):
+        """The floor is low on purpose: a higher one blanks out the first month of the
+        season, when a changed role is most worth catching. A thin pick is surfaced as
+        thin rather than withheld."""
+        from app.services.nfl_prop_grades import MIN_GAMES_FOR_GRADE
+
+        assert MIN_GAMES_FOR_GRADE == 4
+        g = make(model_prob=0.64, games=4, band=Band.SUGGESTIVE)
+        assert g.grade.actionable
+        assert g.games_of_history == MIN_GAMES_FOR_GRADE
+
     def test_actionable_flag(self):
         assert Grade.A.actionable and Grade.B.actionable
         assert not Grade.C.actionable and not Grade.D.actionable
