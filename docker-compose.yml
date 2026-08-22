@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-edgebetter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edgebetter}
+      POSTGRES_DB: ${POSTGRES_DB:-edgebetter}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Host-only by default: nothing outside this machine needs the database, and the
+      # api and worker reach it as db:5432 over the compose network regardless.
+      - "${DB_BIND:-127.0.0.1}:${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-edgebetter} -d ${POSTGRES_DB:-edgebetter}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    entrypoint: ["/srv/entrypoint.sh"]
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-edgebetter}:${POSTGRES_PASSWORD:-edgebetter}@db:5432/${POSTGRES_DB:-edgebetter}
+    volumes:
+      - ./backend:/srv
+      - ./data:/srv/data:ro
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8001}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  worker:
+    build:
+      context: ./backend
+    command: python -m app.scheduler
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-edgebetter}:${POSTGRES_PASSWORD:-edgebetter}@db:5432/${POSTGRES_DB:-edgebetter}
+    volumes:
+      - ./backend:/srv
+      - ./data:/srv/data:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    environment:
+      VITE_API_BASE: /api
+    volumes:
+      - ./frontend:/srv
+      - /srv/node_modules
+    ports:
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-5174}:5173"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

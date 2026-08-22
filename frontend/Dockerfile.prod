@@ -1,0 +1,30 @@
+# Production frontend: build the static bundle, then serve it with nginx.
+#
+# The dev image (Dockerfile) runs Vite's dev server against bind-mounted source, which is
+# right while editing and wrong for a machine that runs unattended for a season. This image
+# is self-contained -- the code is baked in, so restarting it can never pick up a
+# half-saved file.
+
+FROM node:22-slim AS build
+WORKDIR /app
+
+# Dependencies first so edits to source don't invalidate the install layer.
+COPY package.json package-lock.json* ./
+# `npm ci` when a lockfile is present, which is what makes the NAS build byte-for-byte
+# what the laptop built. Falls back to `npm install` so a missing lockfile degrades to a
+# working build rather than a failed one.
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; \
+    else npm install --no-audit --no-fund; fi
+
+COPY . .
+# `npm run build` is `tsc -b && vite build`, so a type error fails the build rather than
+# shipping a broken bundle.
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 5173
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:5173/ >/dev/null 2>&1 || exit 1

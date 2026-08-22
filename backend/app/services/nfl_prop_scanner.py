@@ -1,0 +1,193 @@
+"""Scan a week's posted prop lines and grade every one.
+
+Turns the props tool from a calculator into a scanner: instead of checking a prop you
+already had in mind, this walks every line on the slate, projects the player, and ranks
+what comes back.
+
+All three markets go through identical analysis. They differ only in the bar each edge
+must clear, which is set by that market's measured calibration error -- see
+`nfl_prop_grades`.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models import NflGame, NflPropLine
+from app.services.nfl_prop_grades import GradedProp, grade_line, rank
+from app.services.nfl_props import Market, project_prop
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class ScanResult:
+    graded: list[GradedProp]
+    lines_seen: int
+    players_projected: int
+    players_without_history: int
+    week: int | None
+    season: int | None
+
+    @property
+    def actionable(self) -> list[GradedProp]:
+        return [g for g in self.graded if g.grade.actionable]
+
+    @property
+    def side_skew(self) -> tuple[int, int]:
+        """(overs, unders) among actionable picks."""
+        picks = self.actionable
+        overs = sum(1 for g in picks if g.side == "Over")
+        return overs, len(picks) - overs
+
+    @property
+    def one_sided_warning(self) -> str | None:
+        """Flag a scan that lands almost entirely on one side.
+
+        Receiving yards are genuinely right-skewed -- a receiver's median game runs about
+        75% of his average, which our distribution reproduces closely (0.767 modelled
+        against 0.747 observed). So a lean toward unders is a real consequence of the
+        shape, not a bug.
+
+        It is still worth surfacing. A market-wide one-sided signal is far more often a
+        model that is drifting than an edge nobody else noticed, and the reader should
+        weigh it that way rather than taking twenty unders on trust.
+        """
+        overs, unders = self.side_skew
+        total = overs + unders
+        if total < 5:
+            return None
+        share = max(overs, unders) / total
+        if share < 0.8:
+            return None
+        side = "Over" if overs > unders else "Under"
+        return (
+            f"{max(overs, unders)} of {total} picks are {side}. Receiving yards really "
+            f"are right-skewed, so some lean is expected -- but a scan this one-sided is "
+            f"more often a drifting model than a market-wide edge. Treat with suspicion "
+            f"until the season provides a track record."
+        )
+
+    def summary(self) -> str:
+        by_grade: dict[str, int] = defaultdict(int)
+        for g in self.graded:
+            by_grade[g.grade.value] += 1
+        counts = " ".join(f"{k}:{by_grade.get(k, 0)}" for k in ("A", "B", "C", "D"))
+        return (
+            f"{self.lines_seen} lines, {len(self.graded)} graded ({counts}), "
+            f"{self.players_without_history} players without enough history"
+        )
+
+
+def scan_week(
+    session: Session,
+    *,
+    season: int | None = None,
+    week: int | None = None,
+    markets: tuple[Market, ...] = (Market.RECV_YDS, Market.RUSH_YDS, Market.PASS_YDS),
+) -> ScanResult:
+    """Grade every posted prop line for a week."""
+    now = datetime.now(UTC)
+
+    stmt = select(NflPropLine)
+    if season:
+        stmt = stmt.where(NflPropLine.season == season)
+    if week:
+        stmt = stmt.where(NflPropLine.week == week)
+    lines = session.scalars(stmt).all()
+
+    if not lines:
+        return ScanResult([], 0, 0, 0, week, season)
+
+    # Latest observation per (game, market, player, book, side, point).
+    latest: dict[tuple, NflPropLine] = {}
+    for line in sorted(lines, key=lambda x: x.fetched_at, reverse=True):
+        key = (
+            line.game_id, line.market, line.player_name,
+            line.bookmaker, line.outcome, line.point,
+        )
+        latest.setdefault(key, line)
+
+    games = {
+        g.game_id: g
+        for g in session.scalars(
+            select(NflGame).where(NflGame.game_id.in_({l.game_id for l in latest.values()}))
+        ).all()
+    }
+
+    wanted = {m.value for m in markets}
+    # One projection per (player, market, game) rather than per line -- a player may have
+    # the same prop at several books and the projection does not change between them.
+    projections: dict[tuple, object] = {}
+    graded: list[GradedProp] = []
+    missing: set[str] = set()
+
+    for line in latest.values():
+        if line.market not in wanted:
+            continue
+        game = games.get(line.game_id)
+        if game is None or not line.player_id:
+            if not line.player_id:
+                missing.add(line.player_name)
+            continue
+
+        key = (line.player_id, line.market, line.game_id)
+        if key not in projections:
+            is_home = False
+            opponent = game.away_team
+            from app.models import NflPlayerGame
+
+            recent = session.scalar(
+                select(NflPlayerGame)
+                .where(NflPlayerGame.player_id == line.player_id)
+                .order_by(NflPlayerGame.season.desc(), NflPlayerGame.week.desc())
+                .limit(1)
+            )
+            if recent is not None and recent.team == game.home_team:
+                is_home, opponent = True, game.away_team
+            elif recent is not None:
+                is_home, opponent = False, game.home_team
+
+            projections[key] = project_prop(
+                session,
+                line.player_id,
+                Market(line.market),
+                season=game.season,
+                week=game.week,
+                opponent=opponent,
+                is_home=is_home,
+                roof=game.roof,
+                wind=game.wind,
+                temp=game.temp,
+            )
+
+        projection = projections[key]
+        if projection is None:
+            missing.add(line.player_name)
+            continue
+
+        result = grade_line(
+            projection,
+            side=line.outcome,
+            line=line.point,
+            price_american=line.price_american,
+            book=line.bookmaker,
+        )
+        if result is not None:
+            graded.append(result)
+
+    projected = len({k for k, v in projections.items() if v is not None})
+    return ScanResult(
+        graded=rank(graded),
+        lines_seen=len(latest),
+        players_projected=projected,
+        players_without_history=len(missing),
+        week=week,
+        season=season,
+    )

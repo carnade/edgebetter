@@ -1,0 +1,667 @@
+/* EdgeBetter — a sportsbook trading terminal.
+   Phosphor green on green-black: the palette reads as an exchange display, which is
+   what this is. Monospace dominates because odds screens are monospaced and numeric
+   alignment is structural here, not cosmetic. */
+
+:root {
+  --bg: #06100c;
+  --bg-raised: #08160f;
+  --surface: rgba(198, 255, 224, 0.035);
+  --surface-hover: rgba(198, 255, 224, 0.06);
+  --line: rgba(160, 255, 205, 0.12);
+  --line-soft: rgba(160, 255, 205, 0.07);
+
+  --green: #3ddc91;
+  --green-bright: #6affb0;
+  --green-dim: #1e7a55;
+  --green-glow: rgba(61, 220, 145, 0.35);
+
+  --text: #d6e8de;
+  --text-strong: #eafff4;
+  --muted: #6e8a7d;
+  --muted-dim: #4a6157;
+
+  --amber: #e8b44a;
+  --red: #e0625e;
+
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+
+  --rail-h: 34px;
+  --radius: 3px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ambient depth. Fixed so it never scrolls with content. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 18% -10%, rgba(61, 220, 145, 0.07), transparent 70%),
+    radial-gradient(700px 400px at 92% 0%, rgba(61, 220, 145, 0.04), transparent 70%);
+  z-index: 0;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+
+/* ---------------------------------------------------------------- sport rail
+   Deliberately thin and flush to the top: sports are the only thing here. */
+.rail {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--rail-h);
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 14px;
+  background: rgba(6, 16, 12, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+
+.rail-mark {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--green-dim);
+  padding-right: 18px;
+  margin-right: 4px;
+  border-right: 1px solid var(--line-soft);
+  user-select: none;
+}
+
+.rail-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.19em;
+  color: var(--muted);
+  transition: color 140ms ease;
+}
+.rail-link:hover { color: var(--text); }
+.rail-link.active { color: var(--green-bright); }
+.rail-link.active::after {
+  content: "";
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green-glow);
+}
+
+.rail-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted-dim);
+}
+.rail-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-dim); }
+.rail-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green-glow); }
+.rail-dot.warn { background: var(--amber); }
+
+/* ------------------------------------------------------------------- layout */
+.shell { position: relative; z-index: 1; }
+
+.subnav {
+  display: flex;
+  gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-soft);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.subnav::-webkit-scrollbar { display: none; }
+
+.subnav-link {
+  padding: 9px 12px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.subnav-link:hover { color: var(--text); }
+.subnav-link.active { color: var(--text-strong); border-bottom-color: var(--green-dim); }
+
+.page { padding: 18px 14px 64px; max-width: 1320px; margin: 0 auto; }
+
+.eyebrow {
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  color: var(--muted-dim);
+  margin: 0 0 10px;
+}
+
+.page-title {
+  font-family: var(--sans);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+  margin: 0 0 2px;
+}
+.page-sub { color: var(--muted); font-size: 11.5px; margin: 0 0 20px; }
+
+/* -------------------------------------------------------------- glass panel
+   Glass on cards and the rail only. Dense tables stay flat: blur behind small
+   numerals costs legibility, which is the one thing this page cannot spend. */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.9);
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  margin-bottom: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.banner strong { color: var(--text); font-weight: 600; }
+.banner.warn { border-color: rgba(232, 180, 74, 0.28); }
+.banner.warn .banner-key { color: var(--amber); }
+.banner-key { color: var(--green); font-size: 10px; letter-spacing: 0.14em; white-space: nowrap; }
+
+/* --------------------------------------------------------------- game cards */
+.slate { display: grid; gap: 10px; }
+
+.game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  padding: 13px 15px;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.game:hover { border-color: rgba(160, 255, 205, 0.22); background: var(--surface-hover); }
+
+.game-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.game-time { font-size: 10.5px; color: var(--muted-dim); letter-spacing: 0.06em; }
+.game-status {
+  font-size: 9.5px; letter-spacing: 0.14em; color: var(--muted-dim);
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 1px 5px;
+}
+
+.matchup { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; }
+.matchup .team { color: var(--text-strong); letter-spacing: 0.02em; }
+.matchup .at { color: var(--muted-dim); font-size: 11px; }
+.matchup .score { color: var(--green); margin-left: 4px; }
+
+.pitchers { display: grid; gap: 3px; margin-top: 9px; }
+.pitcher-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.pitcher-row .side { color: var(--muted-dim); width: 26px; font-size: 9.5px; letter-spacing: 0.1em; }
+.pitcher-row .name { color: var(--text); }
+.pitcher-row .era { color: var(--muted); }
+.pitcher-row .era b { color: var(--text); font-weight: 500; }
+
+/* ------------------------------------------------------- signature: numberline
+   The product's whole thesis in one graphic: an edge is the distance between what
+   the market says and what the model says. Both marks sit on one axis, and the gap
+   between them is shaded. Nothing else on the page is allowed to be this loud. */
+.numberline { padding-top: 2px; }
+
+.nl-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 9.5px; letter-spacing: 0.16em; color: var(--muted-dim); margin-bottom: 9px;
+}
+
+.nl-track {
+  position: relative;
+  height: 30px;
+  border-left: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+}
+.nl-axis {
+  position: absolute; left: 0; right: 0; top: 15px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
+}
+
+.nl-gap {
+  position: absolute; top: 9px; height: 13px;
+  background: repeating-linear-gradient(
+    -45deg, var(--green-glow), var(--green-glow) 1px, transparent 1px, transparent 5px
+  );
+  border-left: 1px solid var(--green-dim);
+  border-right: 1px solid var(--green-dim);
+}
+
+.nl-mark { position: absolute; top: 4px; transform: translateX(-50%); text-align: center; }
+.nl-mark i {
+  display: block; width: 1px; height: 22px; margin: 0 auto;
+  background: var(--muted); box-shadow: none;
+}
+.nl-mark.model i { background: var(--green); box-shadow: 0 0 7px var(--green-glow); }
+.nl-mark b {
+  display: block; font-size: 11px; font-weight: 600; margin-top: 3px; color: var(--text);
+}
+.nl-mark.model b { color: var(--green-bright); }
+.nl-mark span {
+  display: block; font-size: 8.5px; letter-spacing: 0.14em; color: var(--muted-dim);
+}
+.nl-mark.model span { color: var(--green-dim); }
+
+.nl-empty {
+  height: 30px; display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; color: var(--muted-dim); letter-spacing: 0.06em;
+}
+
+.nl-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 22px; padding-top: 8px; border-top: 1px solid var(--line-soft);
+  font-size: 10.5px; color: var(--muted);
+}
+
+/* ------------------------------------------------------------------- badges */
+.ev {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 2px 7px; border-radius: 2px;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.ev.pos { color: var(--green-bright); border-color: rgba(61, 220, 145, 0.4); background: rgba(61, 220, 145, 0.08); }
+.ev.thin { color: var(--amber); border-color: rgba(232, 180, 74, 0.35); background: rgba(232, 180, 74, 0.07); }
+.ev.neg { color: var(--red); border-color: rgba(224, 98, 94, 0.3); }
+
+.agree {
+  font-size: 9px; letter-spacing: 0.12em; color: var(--green);
+  border: 1px solid rgba(61, 220, 145, 0.3); border-radius: 2px; padding: 1px 5px;
+}
+
+.tag-est {
+  font-size: 8.5px; letter-spacing: 0.14em; color: var(--muted-dim);
+  border: 1px dashed var(--line); border-radius: 2px; padding: 1px 5px;
+}
+
+/* ------------------------------------------------------------------- tables
+   Flat, not glass. Dense numerics need maximum contrast. */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+thead th {
+  position: sticky; top: 0;
+  background: var(--bg-raised);
+  text-align: right;
+  font-size: 9.5px; font-weight: 500; letter-spacing: 0.14em;
+  color: var(--muted-dim);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+thead th.label, tbody td.label { text-align: left; }
+thead th:hover { color: var(--text); }
+thead th.sorted { color: var(--green); }
+
+tbody td {
+  text-align: right;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+  color: var(--text);
+}
+tbody td.label { color: var(--text-strong); }
+tbody tr:hover { background: var(--surface); }
+tbody tr:last-child td { border-bottom: none; }
+
+.rank { color: var(--muted-dim); font-size: 10px; width: 26px; }
+.pos { color: var(--green); }
+.neg-v { color: var(--red); }
+.dim { color: var(--muted); }
+
+/* ---------------------------------------------------------------- sparkline */
+.spark { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 14px; }
+.spark i { width: 3px; background: var(--green-dim); border-radius: 0.5px; }
+.spark i.hot { background: var(--red); }
+
+/* ------------------------------------------------------------------ detail */
+.detail-grid { display: grid; grid-template-columns: 1fr 340px; gap: 14px; align-items: start; }
+.panel { padding: 14px 15px; }
+.panel h3 {
+  font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--text-strong); margin: 0 0 3px;
+}
+.panel .hint { font-size: 10.5px; color: var(--muted-dim); margin: 0 0 12px; }
+
+.kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: 11.5px; }
+.kv:last-child { border-bottom: none; }
+.kv span { color: var(--muted); }
+.kv b { color: var(--text-strong); font-weight: 600; }
+
+.empty {
+  padding: 44px 20px; text-align: center; color: var(--muted-dim);
+  border: 1px dashed var(--line); border-radius: var(--radius); font-size: 12px;
+}
+.empty b { display: block; color: var(--text); font-size: 13px; margin-bottom: 6px; font-weight: 600; }
+
+.loading { padding: 40px; text-align: center; color: var(--muted-dim); font-size: 11px; letter-spacing: 0.14em; }
+
+/* ---------------------------------------------------------------- a11y/motion */
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (max-width: 900px) {
+  .game { grid-template-columns: 1fr; gap: 14px; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .page { padding: 14px 10px 48px; }
+  .rail { padding: 0 8px; }
+  .rail-mark { display: none; }
+}
+
+/* --------------------------------------------------------------- mismatches
+   The score bar reads as a size meter, not a confidence meter: it says how
+   lopsided the matchup is, never how good the bet is. */
+.score { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
+.score b { font-size: 12px; font-weight: 600; color: var(--text-strong); min-width: 20px; }
+.score span {
+  display: block; width: 54px; height: 4px;
+  background: var(--line-soft); border-radius: 2px; overflow: hidden;
+}
+.score i { display: block; height: 100%; background: var(--green-dim); }
+
+.evidence {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.evidence .eyebrow { margin-bottom: 12px; }
+.evidence .hint { font-size: 10.5px; color: var(--muted-dim); margin: 0; line-height: 1.5; }
+
+.evidence-bands { display: flex; flex-wrap: wrap; gap: 10px; }
+.band {
+  flex: 1 1 110px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  display: grid;
+  gap: 2px;
+}
+.band.strict { border-color: rgba(61, 220, 145, 0.32); }
+.band-label { font-size: 8.5px; letter-spacing: 0.16em; color: var(--muted-dim); }
+.band b { font-size: 17px; font-weight: 600; color: var(--green-bright); }
+.band.strict b { color: var(--green-bright); }
+.band-n { font-size: 9.5px; color: var(--muted-dim); }
+.band-be { font-size: 9px; color: var(--amber); letter-spacing: 0.04em; }
+
+/* ------------------------------------------------------------------ bet gate
+   The one panel that answers "should I bet this". It leads with a verdict but
+   always shows the four checks underneath -- a badge without its reasoning is
+   exactly the habit this tool exists to discourage. */
+.gate {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.gate-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+
+.gate-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 4px 0 0;
+  letter-spacing: -0.01em;
+}
+
+.gate-count { text-align: right; line-height: 1.1; }
+.gate-count b { display: block; font-size: 26px; font-weight: 600; color: var(--green-bright); }
+.gate-count span { font-size: 9.5px; letter-spacing: 0.12em; color: var(--muted-dim); }
+
+.gate-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 10px 0 0;
+  max-width: 780px;
+  line-height: 1.55;
+}
+
+.gate-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 13px; }
+
+.gate-card {
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  padding: 11px 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.gate-card.is-bet {
+  border-color: rgba(61, 220, 145, 0.4);
+  box-shadow: 0 0 22px -12px var(--green-glow);
+}
+
+.gate-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gate-matchup { font-size: 14px; font-weight: 600; color: var(--text-strong); }
+.gate-matchup:hover { color: var(--green-bright); }
+.gate-card-sub { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+
+.checks { margin: 10px 0 0; display: grid; gap: 3px; }
+.check { display: flex; align-items: baseline; gap: 7px; font-size: 10.5px; }
+.check-mark { width: 11px; font-size: 10px; }
+.check-mark.pass { color: var(--green); }
+.check-mark.fail { color: var(--red); }
+.check-label { color: var(--text); min-width: 118px; }
+.check-detail { color: var(--muted-dim); }
+
+.gate-action {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  color: var(--text);
+}
+.gate-action b { color: var(--green-bright); font-weight: 600; }
+.gate-action.muted { color: var(--muted); }
+
+.ev.muted { color: var(--muted-dim); border-color: var(--line-soft); }
+
+@media (max-width: 700px) {
+  .gate-head { flex-direction: column; gap: 8px; }
+  .gate-count { text-align: left; }
+}
+
+/* ---------------------------------------------------------------- budget strip
+   Per-event markets bill per game, so an empty table is usually a budget fact
+   rather than an absence of opportunities. Say so up front. */
+.budget {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.budget-nums { display: flex; flex-wrap: wrap; gap: 26px; }
+.budget-nums div { display: grid; gap: 1px; }
+.budget-nums b { font-size: 20px; font-weight: 600; color: var(--green-bright); line-height: 1.1; }
+.budget-nums span { font-size: 8.5px; letter-spacing: 0.15em; color: var(--muted-dim); }
+.budget-reason {
+  margin: 10px 0 0; font-size: 10.5px; color: var(--muted-dim); line-height: 1.5;
+}
+
+/* ------------------------------------------------------------- nfl splits
+   The interval bar is the point of this view: it shows how much a rate can be
+   trusted, which a percentage alone actively hides. */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.preset {
+  font-size: 10.5px; letter-spacing: 0.04em; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 2px; color: var(--muted);
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.preset:hover { color: var(--text); border-color: rgba(160, 255, 205, 0.24); }
+.preset.active {
+  color: var(--green-bright); border-color: rgba(61, 220, 145, 0.42);
+  background: rgba(61, 220, 145, 0.08);
+}
+
+.split-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.split-desc { font-size: 12px; color: var(--text-strong); }
+.split-n { font-size: 10.5px; color: var(--muted-dim); }
+.split-n.tiny { color: var(--amber); }
+
+/* Interval drawn 0-100% with break-even marked, so width is readable at a glance. */
+.ci { padding: 2px 0; }
+.ci-track {
+  position: relative; display: block; height: 8px;
+  background: rgba(255, 255, 255, 0.03); border-radius: 2px;
+}
+.ci-span {
+  position: absolute; top: 2px; height: 4px;
+  background: var(--green-dim); border-radius: 2px;
+}
+.ci-point {
+  position: absolute; top: 0; width: 2px; height: 8px;
+  background: var(--green-bright); transform: translateX(-1px);
+}
+.ci-be {
+  position: absolute; top: -2px; width: 1px; height: 12px;
+  background: var(--amber); opacity: 0.75;
+}
+
+.band {
+  /* inline-block so the border hugs the label instead of stretching the cell */
+  display: inline-block;
+  font-size: 8.5px; letter-spacing: 0.14em; padding: 2px 6px;
+  border-radius: 2px; border: 1px solid var(--line-soft); color: var(--muted-dim);
+}
+.band-noise { color: var(--red); border-color: rgba(224, 98, 94, 0.3); }
+.band-thin { color: var(--amber); border-color: rgba(232, 180, 74, 0.3); }
+.band-mod { color: var(--text); }
+.band-solid { color: var(--green-bright); border-color: rgba(61, 220, 145, 0.35); }
+
+/* ------------------------------------------------------------- nfl factors */
+.factor { padding: 15px 17px; margin-bottom: 14px; }
+.factor h3 {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  color: var(--text-strong); margin: 0 0 3px;
+}
+.factor .hint { font-size: 11px; color: var(--muted-dim); margin: 0 0 14px; }
+.factor-grid { display: flex; flex-wrap: wrap; gap: 24px; }
+.factor-grid div { display: grid; gap: 1px; }
+.factor-grid b { font-size: 19px; font-weight: 600; color: var(--green-bright); line-height: 1.1; }
+.factor-grid b.neg-v { color: var(--red); }
+.factor-grid span { font-size: 8.5px; letter-spacing: 0.14em; color: var(--muted-dim); }
+.factor-verdict {
+  margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--line-soft);
+  font-size: 11.5px; color: var(--muted); line-height: 1.55; max-width: 760px;
+}
+
+/* --------------------------------------------------------------- nfl props */
+.prop-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
+.prop-controls label { display: grid; gap: 4px; }
+.prop-controls span { font-size: 8.5px; letter-spacing: 0.15em; color: var(--muted-dim); }
+.prop-controls select,
+.prop-controls input {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  background: var(--bg-raised); border: 1px solid var(--line);
+  border-radius: 2px; padding: 6px 9px; min-width: 150px;
+}
+.prop-controls input { min-width: 90px; }
+.prop-controls select:focus-visible,
+.prop-controls input:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+
+.prop-form {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+}
+
+.prop-verdict {
+  display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+}
+.prop-verdict div { display: grid; gap: 1px; }
+.prop-verdict b { font-size: 22px; font-weight: 600; color: var(--text-strong); }
+.prop-verdict b.pos { color: var(--green-bright); }
+.prop-verdict span { font-size: 8.5px; letter-spacing: 0.14em; color: var(--muted-dim); }
+
+/* ------------------------------------------------------------- prop grades */
+.grade {
+  display: inline-block; min-width: 15px; text-align: center;
+  font-size: 10px; font-weight: 600; padding: 1px 4px; border-radius: 2px;
+  border: 1px solid var(--line-soft);
+}
+.grade-a { color: var(--green-bright); border-color: rgba(61,220,145,0.5); background: rgba(61,220,145,0.1); }
+.grade-b { color: var(--green); border-color: rgba(61,220,145,0.28); }
+.grade-c { color: var(--amber); border-color: rgba(232,180,74,0.28); }
+.grade-d { color: var(--muted-dim); }
+
+/* Edge relative to the bar it must clear; the tick marks 1.0x. */
+.edgebar { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
+.edgebar-track {
+  position: relative; display: block; width: 52px; height: 5px;
+  background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden;
+}
+.edgebar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--green-dim); }
+.edgebar-bar { position: absolute; top: -2px; width: 1px; height: 9px; background: var(--amber); opacity: 0.8; }
+.edgebar b { font-size: 10.5px; color: var(--text); min-width: 26px; }
+
+/* The reasoning sits under the player name rather than in a cramped end column,
+   where it was being clipped. */
+.row-reason {
+  font-size: 9.5px; color: var(--muted-dim); margin-top: 3px;
+  max-width: 260px; line-height: 1.4;
+}
+
+/* Recent games against this line: the fastest sanity check on a probability. */
+.recent { display: flex; align-items: center; gap: 8px; }
+.recent-games { display: inline-flex; gap: 3px; }
+.recent-games i {
+  font-style: normal; font-size: 9.5px; min-width: 22px; text-align: center;
+  padding: 1px 3px; border-radius: 2px; border: 1px solid transparent;
+}
+.recent-games i.over {
+  color: var(--green-bright); border-color: rgba(61,220,145,0.3);
+  background: rgba(61,220,145,0.08);
+}
+.recent-games i.under { color: var(--muted); border-color: var(--line-soft); }
+.recent-tally { font-size: 9.5px; white-space: nowrap; }

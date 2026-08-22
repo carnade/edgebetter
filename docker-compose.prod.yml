@@ -1,0 +1,40 @@
+# Production overlay. Layered on top of docker-compose.yml, never used alone:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# or just `./scripts/start_prod.sh`, which does exactly that.
+#
+# The base file is tuned for editing code: hot reload, live-mounted source, a dev server
+# that rebuilds on every keystroke. All of that is right on a laptop and wrong on a NAS
+# that runs unattended through a season. This file changes only what that difference
+# requires -- everything else is inherited.
+#
+# Note on merge semantics: Compose CONCATENATES `ports` and `volumes` across files rather
+# than replacing them, so this overlay cannot remove a mapping the base file declares. Both
+# services here are arranged so it never needs to: nginx listens on 5173, the same port the
+# dev server used, and the bind-mounted source is harmless because the production frontend
+# is served from /usr/share/nginx/html.
+
+services:
+  db:
+    # Survives a NAS reboot without anyone logging in to restart it.
+    restart: unless-stopped
+
+  api:
+    # No --reload. It watches the filesystem and restarts the process on any change, which
+    # on a NAS means an unnecessary daemon plus a real chance of restarting mid-ingest.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
+  worker:
+    # Already `restart: unless-stopped` in the base file. Named here so it is obvious the
+    # scheduler is meant to be running, since it is what collects prop lines all season and
+    # nothing backfills them if it is down.
+    restart: unless-stopped
+
+  web:
+    build:
+      dockerfile: Dockerfile.prod
+    # Replaces `npm run dev`. Compose replaces `command` outright, so this is a clean swap.
+    command: ["nginx", "-g", "daemon off;"]
+    restart: unless-stopped
