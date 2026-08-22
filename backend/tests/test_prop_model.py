@@ -216,3 +216,34 @@ class TestScanCoversEveryMarket:
 
         for market in Market:
             assert market.value in _cal
+
+
+class TestPartialSlateDetection:
+    """A truncated week must not look like a complete one.
+
+    The warning compares games we hold lines for against games on the slate. Its failure
+    mode is silent in both directions worth guarding: a slate size of 0 disables the
+    warning entirely, and that is exactly what happened when the season had to be passed
+    explicitly -- the UI only passes a week, so in normal use the check was dead.
+    """
+
+    def test_zero_slate_size_produces_no_false_warning(self):
+        from app.services.nfl_prop_scanner import ScanResult
+
+        r = ScanResult([], 0, 0, 0, week=1, season=None, games_in_week=0, games_with_lines=0)
+        assert r.missing_games_warning is None
+
+    def test_partial_slate_is_reported_with_the_counts(self):
+        from app.services.nfl_prop_scanner import ScanResult
+
+        r = ScanResult([], 0, 0, 0, week=1, season=2026, games_in_week=16, games_with_lines=2)
+        warning = r.missing_games_warning
+        assert warning is not None
+        assert "2 of 16" in warning
+        assert "14 missing" in warning
+
+    def test_complete_slate_is_silent(self):
+        from app.services.nfl_prop_scanner import ScanResult
+
+        r = ScanResult([], 0, 0, 0, week=1, season=2026, games_in_week=16, games_with_lines=16)
+        assert r.missing_games_warning is None

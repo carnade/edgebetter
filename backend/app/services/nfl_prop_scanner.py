@@ -163,13 +163,24 @@ def scan_week(
         stmt = stmt.where(NflPropLine.week == week)
     lines = session.scalars(stmt).all()
 
-    def _slate_size() -> int:
-        stmt = select(NflGame)
-        if season:
-            stmt = stmt.where(NflGame.season == season)
-        if week:
-            stmt = stmt.where(NflGame.week == week)
-        return len(session.scalars(stmt).all()) if (season and week) else 0
+    def _slate_size(known_season: int | None = None) -> int:
+        """How many games are on the slate we are scanning.
+
+        The season is inferred from the lines themselves when the caller does not supply
+        one, which the UI does not. Requiring both arguments meant this silently returned
+        0 in normal use, and a 0 here disables the partial-slate warning entirely -- the
+        exact failure that warning exists to catch.
+        """
+        use_season = season or known_season
+        if not (use_season and week):
+            return 0
+        return len(
+            session.scalars(
+                select(NflGame).where(
+                    NflGame.season == use_season, NflGame.week == week
+                )
+            ).all()
+        )
 
     if not lines:
         return ScanResult([], 0, 0, 0, week, season, games_in_week=_slate_size())
@@ -280,6 +291,8 @@ def scan_week(
         players_without_history=len(missing),
         week=week,
         season=season,
-        games_in_week=_slate_size(),
+        games_in_week=_slate_size(
+            next((line.season for line in latest.values() if line.season), None)
+        ),
         games_with_lines=len({line.game_id for line in latest.values()}),
     )
