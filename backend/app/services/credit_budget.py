@@ -32,10 +32,18 @@ log = logging.getLogger(__name__)
 # a real balance -- `x-requests-remaining` from any response always wins.
 DEFAULT_MONTHLY_QUOTA = 500
 
-# Priority order. Game-level odds are cheap and cover every game, so they are funded
-# first; props are funded from what remains.
+# Priority order, funded top down. Game-level odds come first because they are cheap and
+# cover every game; everything below competes for what is left.
+#
+# NFL props sit above MLB props deliberately, and the ordering is enforced rather than
+# merely described. Player props are the only model in this project that beats its
+# benchmark, and three of the four MLB per-event markets are in
+# `markets.UNVALIDATED_MODELS` -- they failed their walk-forward gate. Without a
+# reservation the daily MLB job would spend the allowance long before the weekly NFL poll
+# runs on Thursday, and NFL would hit the reserve floor mid-slate.
 PRIORITY_GAME_LEVEL = 0
-PRIORITY_PROPS = 1
+PRIORITY_NFL_PROPS = 1
+PRIORITY_MLB_PROPS = 2
 
 
 @dataclass(frozen=True)
@@ -49,6 +57,8 @@ class Budget:
     spent_today: int
     # After funding game-level polls for every active sport.
     game_level_cost_today: int
+    # Held back for the weekly NFL prop poll before MLB props are funded. 0 out of season.
+    nfl_props_reserved: int
     props_allowance: int
     props_markets_per_game: int
     props_games_today: int
@@ -124,6 +134,41 @@ def active_sports_game_level_cost(session: Session) -> int:
     return total
 
 
+def nfl_props_reservation(session: Session) -> int:
+    """Credits per day to hold back for the weekly NFL prop poll.
+
+    Returns 0 out of season, when there are no upcoming games to poll, so this costs
+    nothing during the summer -- the same principle that keeps the NBA offseason from
+    consuming budget.
+
+    The weekly cost is amortised across seven days rather than reserved in a lump, because
+    the daily allowance is itself a daily figure. Holding back the full slate cost on one
+    day would starve everything else that day and reserve nothing on the other six.
+    """
+    from datetime import timedelta
+
+    from app.models import NflGame
+
+    settings = get_settings()
+    markets = len(settings.nfl_prop_markets_list)
+    if markets == 0:
+        return 0
+    regions = max(1, len([r for r in settings.odds_regions.split(",") if r.strip()]))
+
+    now = datetime.now(UTC)
+    games = session.scalars(
+        select(NflGame).where(
+            NflGame.home_score.is_(None),
+            NflGame.gameday >= now.date(),
+            NflGame.gameday <= (now + timedelta(days=7)).date(),
+        )
+    ).all()
+    if not games:
+        return 0
+    weekly = len(games) * markets * regions
+    return -(-weekly // 7)  # ceil, so rounding never under-reserves
+
+
 def compute(
     session: Session,
     *,
@@ -151,8 +196,11 @@ def compute(
     game_level = active_sports_game_level_cost(session)
     already = spent_today(session, today)
 
-    # Game-level polling is funded first; props get the remainder of today's allowance.
-    props_allowance = max(0, daily - max(game_level - already, 0))
+    # Game-level polling is funded first, then NFL props are reserved, and MLB props get
+    # whatever is left. That ordering is the whole point: MLB polls daily and NFL weekly,
+    # so without the reservation MLB would always get there first.
+    nfl_reserved = nfl_props_reservation(session)
+    props_allowance = max(0, daily - max(game_level - already, 0) - nfl_reserved)
     games = props_allowance // per_game
 
     cap = settings.props_max_games_per_day
@@ -167,10 +215,11 @@ def compute(
             f"props need {per_game} per game"
         )
     else:
+        nfl_note = f", {nfl_reserved}/day held for NFL props" if nfl_reserved else ""
         reason = (
             f"{remaining} credits over {days} days = {daily}/day ({source}); "
-            f"{game_level}/day to game-level odds leaves {props_allowance} "
-            f"for props at {per_game} per game"
+            f"{game_level}/day to game-level odds{nfl_note} leaves {props_allowance} "
+            f"for MLB props at {per_game} per game"
         )
 
     return Budget(
@@ -180,6 +229,7 @@ def compute(
         reserve=reserve,
         spent_today=already,
         game_level_cost_today=game_level,
+        nfl_props_reserved=nfl_reserved,
         props_allowance=props_allowance,
         props_markets_per_game=per_game,
         props_games_today=games,

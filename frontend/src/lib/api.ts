@@ -471,6 +471,9 @@ export interface PropScan {
   players_without_history: number;
   one_sided_warning?: string | null;
   coverage_warning?: string | null;
+  missing_games_warning?: string | null;
+  games_in_week: number;
+  games_with_lines: number;
   grade_counts: Record<string, number>;
   props: GradedProp[];
 }

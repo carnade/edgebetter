@@ -5,8 +5,11 @@ making projections worse. The tests pin the shape of the reasoning, not just the
 so that changing one is a deliberate act with a measurement behind it.
 """
 
+import pytest
+
 from app.services.nfl_props import (
     APPLY_OPPONENT_FACTOR,
+    COUNT_DISPERSION,
     CV_MULTIPLIER,
     EFFICIENCY_SHRINKAGE,
     MARKET_CALIBRATION,
@@ -15,7 +18,9 @@ from app.services.nfl_props import (
     Market,
 )
 
-MARKETS = ("recv_yds", "rush_yds", "pass_yds")
+YARDS_MARKETS = ("recv_yds", "rush_yds", "pass_yds")
+COUNT_MARKETS = ("receptions", "rush_att")
+MARKETS = YARDS_MARKETS + COUNT_MARKETS
 
 
 class TestVolumeIsNotShrunk:
@@ -96,10 +101,27 @@ class TestSpreadIsPerMarket:
     def test_passing_is_not(self):
         assert CV_MULTIPLIER["pass_yds"] == 1.0
 
-    def test_every_market_has_a_value(self):
-        assert set(CV_MULTIPLIER) == set(MARKETS)
-        assert set(VOLUME_SHRINKAGE) == set(MARKETS)
-        assert set(SCALE_CORRECTION) == set(MARKETS)
+    def test_spread_settings_cover_the_markets_they_apply_to(self):
+        """CV is a continuous-distribution idea and does not extend to counts.
+
+        A negative binomial's variance follows from its mean and dispersion, so the count
+        markets are configured by COUNT_DISPERSION instead and must not silently pick up a
+        CV multiplier.
+        """
+        assert set(CV_MULTIPLIER) == set(YARDS_MARKETS)
+        assert set(COUNT_DISPERSION) == set(COUNT_MARKETS)
+        assert not set(CV_MULTIPLIER) & set(COUNT_DISPERSION)
+
+    def test_every_market_is_priced_and_graded(self):
+        for market in Market:
+            assert market.value in MARKET_CALIBRATION
+            assert market.value in SCALE_CORRECTION
+
+    def test_volume_shrinkage_defaults_to_none_for_counts(self):
+        """Counts are not in the dict, and the lookup default of 0.0 is what we want:
+        volume is a role for a count market exactly as it is for a yards market."""
+        for market in COUNT_MARKETS:
+            assert VOLUME_SHRINKAGE.get(market, 0.0) == 0.0
 
 
 class TestBarsAreComparable:
@@ -116,4 +138,55 @@ class TestBarsAreComparable:
             MARKET_CALIBRATION["recv_yds"][1]
             < MARKET_CALIBRATION["rush_yds"][1]
             < MARKET_CALIBRATION["pass_yds"][1]
+        )
+
+
+class TestCountMarkets:
+    """Receptions and rush attempts are markets on the volume term alone.
+
+    Every yards projection is volume x efficiency, where volume is a stable role and
+    efficiency is the noisy part. These two drop the noisy half rather than adding
+    anything, which is why they were worth having.
+    """
+
+    def test_they_are_discrete_and_the_yards_markets_are_not(self):
+        assert Market.RECEPTIONS.discrete and Market.RUSH_ATT.discrete
+        assert not Market.RECV_YDS.discrete
+        assert not Market.RUSH_YDS.discrete
+        assert not Market.PASS_YDS.discrete
+
+    def test_receptions_is_targets_times_catch_rate(self):
+        """Modelled on targets, so the efficiency term is catch rate -- bounded 0-1 and
+        far better behaved than yards per target."""
+        assert Market.RECEPTIONS.volume == "targets"
+        assert Market.RECEPTIONS.stat == "receptions"
+        assert not Market.RECEPTIONS.is_pure_volume
+
+    def test_rush_attempts_has_no_efficiency_term_at_all(self):
+        """stat == volume, so efficiency collapses to 1.0 and the projection is simply
+        the player's decayed carries."""
+        assert Market.RUSH_ATT.is_pure_volume
+        assert Market.RUSH_ATT.stat == Market.RUSH_ATT.volume == "carries"
+
+    def test_rush_attempts_is_the_more_overdispersed(self):
+        """Game script moves carries hard in both directions; receptions track a
+        receiver's role much more closely."""
+        assert COUNT_DISPERSION["rush_att"] > COUNT_DISPERSION["receptions"] > 1.0
+
+    def test_support_caps_clear_the_single_game_records(self):
+        """21 receptions and 45 carries are the records, so truncated tail mass is
+        negligible rather than merely small."""
+        assert Market.RECEPTIONS.max_count > 21
+        assert Market.RUSH_ATT.max_count > 45
+
+    def test_probability_over_a_half_point_line_is_a_sum_over_integers(self):
+        """The reason these cannot use the gamma path: at a 2.5 line nearly all the
+        probability sits on a handful of integers, and a continuous curve misprices
+        exactly the numbers people bet."""
+        from app.services.projections_props import distribution, prob_over_line
+
+        dist = distribution(3.4, dispersion=1.25, max_count=24)
+        assert sum(dist) == pytest.approx(1.0, abs=1e-9)
+        assert prob_over_line(3.4, 2.5, dispersion=1.25, max_count=24) == pytest.approx(
+            sum(dist[3:]), abs=1e-12
         )

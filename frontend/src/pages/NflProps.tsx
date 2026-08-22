@@ -3,11 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { american, num, pct, signedPct } from "../lib/format";
 
+// Each market carries its own labels. The volume and efficiency tiles mean different
+// things across markets — for receptions the efficiency term is catch rate, and for rush
+// attempts there is none at all, because the market IS the volume.
 const MARKETS = [
-  { key: "recv_yds", label: "Receiving yards" },
-  { key: "rush_yds", label: "Rushing yards" },
-  { key: "pass_yds", label: "Passing yards" },
+  { key: "recv_yds", label: "Receiving yards", volume: "TARGETS", per: "YDS EACH", counts: false },
+  { key: "rush_yds", label: "Rushing yards", volume: "CARRIES", per: "YDS EACH", counts: false },
+  { key: "pass_yds", label: "Passing yards", volume: "ATTEMPTS", per: "YDS EACH", counts: false },
+  { key: "receptions", label: "Receptions", volume: "TARGETS", per: "CATCH RATE", counts: true },
+  { key: "rush_att", label: "Rush attempts", volume: "CARRIES", per: null, counts: true },
 ];
+
+const marketConfig = (key: string) => MARKETS.find((m) => m.key === key) ?? MARKETS[0];
 
 const TEAMS = [
   "ARI","ATL","BAL","BUF","CAR","CHI","CIN","CLE","DAL","DEN","DET","GB","HOU","IND",
@@ -128,7 +135,14 @@ export function NflProps() {
 
             <div className="factor-grid">
               <div>
-                <b>{num(proj.expected_median ?? proj.expected, 1)}</b>
+                {/* A count median is an integer; showing 2.0 receptions invites reading
+                    it as a yards figure. */}
+                <b>
+                  {num(
+                    proj.expected_median ?? proj.expected,
+                    marketConfig(market).counts ? 0 : 1,
+                  )}
+                </b>
                 <span>50/50 POINT</span>
               </div>
               <div>
@@ -137,12 +151,16 @@ export function NflProps() {
               </div>
               <div>
                 <b>{num(proj.projected_volume, 1)}</b>
-                <span>{market === "pass_yds" ? "ATTEMPTS" : market === "rush_yds" ? "CARRIES" : "TARGETS"}</span>
+                <span>{marketConfig(market).volume}</span>
               </div>
-              <div>
-                <b>{num(proj.projected_efficiency, 2)}</b>
-                <span>YDS EACH</span>
-              </div>
+              {/* Rush attempts has no efficiency term — the market is the volume, so the
+                  ratio is always 1.0 and showing it would be noise. */}
+              {marketConfig(market).per && (
+                <div>
+                  <b>{num(proj.projected_efficiency, 2)}</b>
+                  <span>{marketConfig(market).per}</span>
+                </div>
+              )}
               <div>
                 <b>{proj.snap_pct != null ? pct(proj.snap_pct, 0) : "—"}</b>
                 <span>SNAP SHARE</span>

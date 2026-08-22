@@ -30,6 +30,7 @@ from app.models import NflPlayerGame
 from app.services.nfl_props import (
     APPLY_OPPONENT_FACTOR,
     COLD_FACTOR,
+    COUNT_DISPERSION,
     COLD_THRESHOLD_F,
     EFFICIENCY_SHRINKAGE,
     HALF_LIFE,
@@ -42,6 +43,7 @@ from app.services.nfl_props import (
     Market,
     _gamma_cdf,
 )
+from app.services.projections_props import prob_over_line
 from app.services.stats import rate
 
 log = logging.getLogger(__name__)
@@ -57,6 +59,14 @@ _BIAS_CORR = 0.0
 # shipped per-market values.
 _CV_MULT: float | None = None
 
+# Overrides COUNT_DISPERSION when set, for the dispersion sweep. None uses the shipped
+# per-market values.
+_DISPERSION: float | None = None
+
+
+def _dispersion(market: Market) -> float:
+    return _DISPERSION if _DISPERSION is not None else COUNT_DISPERSION.get(market.value, 1.0)
+
 # Experiment knob: shrink efficiency on accumulated attempts rather than games played.
 #
 # Efficiency is a per-attempt quantity, so the evidence behind it is the number of
@@ -69,6 +79,12 @@ _EFF_SHRINK_ATTEMPTS: float | None = None
 # Lines are tested relative to the projection, mimicking how a book prices near the
 # expected value rather than at arbitrary numbers.
 LINE_OFFSETS = (-20.0, -10.0, -5.0, 0.0, 5.0, 10.0, 20.0)
+
+# Counts need their own offsets. A receiver projected for 3 receptions cannot be tested at
+# +/-20, and using the yards offsets would score every count market at lines no book would
+# ever post -- producing a calibration curve that looks fine because every point is a
+# near-certainty. Half-points match how these are actually posted and avoid pushes.
+COUNT_LINE_OFFSETS = (-2.5, -1.5, -0.5, 0.5, 1.5, 2.5)
 
 
 @dataclass
@@ -204,7 +220,8 @@ def backtest_market(
     errors: list[float] = []
     baseline_errors: list[float] = []
     # offset -> [stated total, hits, n]
-    curve: dict[float, list[float]] = {o: [0.0, 0.0, 0.0] for o in LINE_OFFSETS}
+    offsets = COUNT_LINE_OFFSETS if market.discrete else LINE_OFFSETS
+    curve: dict[float, list[float]] = {o: [0.0, 0.0, 0.0] for o in offsets}
 
     for row in rows:
         pid = row.player_id
@@ -276,9 +293,14 @@ def backtest_market(
                 projected_volume * projected_eff * factor * context * scale - _BIAS_CORR
             )
             cv = (sd_yards / mean_yards) if (g >= 8 and mean_yards > 0 and sd_yards > 0) else 0.75
-            mult = _CV_MULT if _CV_MULT is not None else CV_MULTIPLIER.get(market.value, 1.0)
-            cv = max(0.35, min(1.0, cv * mult))
-            sd = max(expected, 1e-6) * cv
+            if market.discrete:
+                sd = math.sqrt(max(expected, 1e-6) * _dispersion(market))
+            else:
+                mult = (
+                    _CV_MULT if _CV_MULT is not None else CV_MULTIPLIER.get(market.value, 1.0)
+                )
+                cv = max(0.35, min(1.0, cv * mult))
+                sd = max(expected, 1e-6) * cv
 
             if expected > 0 and sd > 0:
                 errors.append(expected - actual)
@@ -286,11 +308,24 @@ def backtest_market(
 
                 shape = (expected / sd) ** 2
                 scale = (sd**2) / expected
-                for offset in LINE_OFFSETS:
+                for offset in offsets:
                     line = expected + offset
                     if line < 0:
                         continue
-                    stated = 1.0 - _gamma_cdf(line, shape, scale)
+                    if market.discrete:
+                        # Books post counts at half-points, so round the tested line to one
+                        # rather than scoring at a fractional number no book would offer.
+                        line = round(line - 0.5) + 0.5
+                        if line < 0:
+                            continue
+                        stated = prob_over_line(
+                            expected,
+                            line,
+                            dispersion=_dispersion(market),
+                            max_count=market.max_count,
+                        )
+                    else:
+                        stated = 1.0 - _gamma_cdf(line, shape, scale)
                     bucket = curve[offset]
                     bucket[0] += stated
                     bucket[1] += 1.0 if actual > line else 0.0
@@ -313,7 +348,7 @@ def backtest_market(
 
     n = len(errors)
     points: list[tuple[float, float, float, int]] = []
-    for offset in LINE_OFFSETS:
+    for offset in offsets:
         stated_total, hits, count = curve[offset]
         if count < 100:
             continue

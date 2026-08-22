@@ -48,12 +48,14 @@ class TestCompute:
     """compute() is driven through fakes so the arithmetic is pinned exactly."""
 
     def _run(self, monkeypatch, *, remaining, game_level, spent=0, today=date(2026, 8, 20),
-             markets=4, cap=4, reserve=50):
+             markets=4, cap=4, reserve=50, nfl_reserved=0):
         from app.services import credit_budget
 
         monkeypatch.setattr(credit_budget, "latest_remaining", lambda s: remaining)
         monkeypatch.setattr(credit_budget, "spent_today", lambda s, t=None: spent)
         monkeypatch.setattr(credit_budget, "active_sports_game_level_cost", lambda s: game_level)
+        # Defaults to 0, the offseason value, so the existing cases keep their meaning.
+        monkeypatch.setattr(credit_budget, "nfl_props_reservation", lambda s: nfl_reserved)
         monkeypatch.setattr(
             credit_budget,
             "get_settings",
@@ -148,3 +150,45 @@ class TestCanSpend:
         monkeypatch.setattr(credit_budget, "latest_remaining", lambda s: None)
         monkeypatch.setattr(credit_budget, "get_settings", lambda: Settings())
         assert credit_budget.can_spend(object(), 60) is True
+
+
+class TestNflPropsAreFundedFirst:
+    """NFL props outrank MLB props, and the ordering is enforced rather than described.
+
+    The mechanism matters: MLB per-event props poll daily and the NFL prop job runs once a
+    week on Thursday. Without a standing reservation MLB simply gets to the allowance
+    first every time, and the weekly NFL poll arrives to find it spent -- then stops
+    mid-slate at the reserve floor, which is the one failure that produces a partial week
+    looking like a complete one.
+    """
+
+    def _budget(self, monkeypatch, **kw):
+        return TestCompute()._run(monkeypatch, **kw)
+
+    def test_reservation_reduces_what_mlb_props_can_spend(self, monkeypatch):
+        without = self._budget(monkeypatch, remaining=500, game_level=6, nfl_reserved=0)
+        with_nfl = self._budget(monkeypatch, remaining=500, game_level=6, nfl_reserved=12)
+        assert with_nfl.props_allowance == without.props_allowance - 12
+        assert with_nfl.nfl_props_reserved == 12
+
+    def test_offseason_reserves_nothing(self, monkeypatch):
+        """No upcoming NFL games must cost nothing, the same way the NBA offseason does."""
+        b = self._budget(monkeypatch, remaining=500, game_level=6, nfl_reserved=0)
+        assert b.nfl_props_reserved == 0
+
+    def test_reservation_can_starve_mlb_entirely(self, monkeypatch):
+        """The intended outcome when credits are short: MLB stops, NFL still polls."""
+        b = self._budget(monkeypatch, remaining=200, game_level=6, nfl_reserved=25)
+        assert b.props_games_today == 0
+        assert b.exhausted
+
+    def test_allowance_never_goes_negative(self, monkeypatch):
+        b = self._budget(monkeypatch, remaining=60, game_level=40, nfl_reserved=40)
+        assert b.props_allowance >= 0
+        assert b.props_games_today >= 0
+
+    def test_reason_names_the_reservation(self, monkeypatch):
+        """The reason string is what the UI shows; a silent reservation would be a
+        confusing way to find out MLB stopped polling."""
+        b = self._budget(monkeypatch, remaining=500, game_level=6, nfl_reserved=12)
+        assert "NFL" in b.reason

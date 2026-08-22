@@ -108,6 +108,13 @@ export function NflScan() {
         </div>
       )}
 
+      {data?.missing_games_warning && (
+        <div className="banner warn">
+          <span className="banner-key">PARTIAL SLATE</span>
+          <span>{data.missing_games_warning}</span>
+        </div>
+      )}
+
       {data?.coverage_warning && (
         <div className="banner warn">
           <span className="banner-key">THIN COVERAGE</span>

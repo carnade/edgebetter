@@ -119,7 +119,8 @@ export default function App() {
       <SportRail odds={odds} />
       <div className="shell">
         <Routes>
-          <Route path="/" element={<Navigate to="/mlb" replace />} />
+          {/* NFL is the priority sport in season; the others are secondary. */}
+          <Route path="/" element={<Navigate to="/nfl" replace />} />
           <Route path="/game/:id" element={<GameDetail />} />
           <Route path="/nfl/*" element={<NflShell />} />
           <Route path="/:sport/*" element={<SportShell />} />

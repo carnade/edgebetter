@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     odds_regions: str = "us"
     odds_markets_mlb: str = "h2h,totals"
     odds_markets_nba: str = "h2h,totals,spreads"
-    odds_polls_per_day: int = 3
+    # Applies to MLB and NBA only; NFL odds have their own job. Cut to 1 because lines
+    # move less than three-a-day polling assumes, and because both of these sports rank
+    # below NFL for this project.
+    odds_polls_per_day: int = 1
     odds_credit_reserve: int = 50
     odds_lookahead_hours: int = 24
     odds_format: str = "american"
@@ -26,9 +29,22 @@ class Settings(BaseSettings):
     # These are only available on /events/{id}/odds, which bills markets x regions PER
     # GAME. One market across a 15-game slate is 15 credits, so the allocator decides
     # how many games we can afford and the model decides which ones.
-    props_markets: str = "h2h_1st_5_innings,totals_1st_5_innings,pitcher_strikeouts,team_totals"
+    # MLB per-event markets. Trimmed to team_totals: the other three -- F5 moneyline, F5
+    # totals and pitcher strikeouts -- are all in `markets.UNVALIDATED_MODELS`, having
+    # failed their walk-forward gate, and were costing up to 12 credits a day to price
+    # models we had already shown do not work.
+    props_markets: str = "team_totals"
     # Safety ceiling independent of the budget maths; 0 disables the cap.
     props_max_games_per_day: int = 4
+
+    # NFL player prop markets, as Odds API keys. Configurable for the same reason the MLB
+    # list is: cost is markets x games, so this is the one lever that changes the weekly
+    # bill without touching code. All five ship enabled; removing one saves 16 credits a
+    # week at a 16-game slate.
+    nfl_prop_markets: str = (
+        "player_reception_yds,player_rush_yds,player_pass_yds,"
+        "player_receptions,player_rush_attempts"
+    )
     # Log intended spend without calling the API. Use before any new sweep.
     props_dry_run: bool = False
 
@@ -39,6 +55,10 @@ class Settings(BaseSettings):
     @property
     def props_markets_list(self) -> list[str]:
         return [m.strip() for m in self.props_markets.split(",") if m.strip()]
+
+    @property
+    def nfl_prop_markets_list(self) -> list[str]:
+        return [m.strip() for m in self.nfl_prop_markets.split(",") if m.strip()]
 
     @property
     def odds_enabled(self) -> bool:

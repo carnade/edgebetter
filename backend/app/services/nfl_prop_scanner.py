@@ -35,6 +35,11 @@ class ScanResult:
     players_without_history: int
     week: int | None
     season: int | None
+    # Games on the slate, against games we actually hold lines for. Derived from the data
+    # rather than from the ingest run, so it catches every cause of a hole -- a poll cut
+    # short by the credit floor, a book that never posted, an event id that did not match.
+    games_in_week: int = 0
+    games_with_lines: int = 0
 
     @property
     def actionable(self) -> list[GradedProp]:
@@ -103,6 +108,24 @@ class ScanResult:
             f"post, nothing is cross-checking these numbers."
         )
 
+    @property
+    def missing_games_warning(self) -> str | None:
+        """Flag a slate we hold only part of.
+
+        Without this a truncated week is invisible: the games that were never polled have
+        no lines, so the scan simply shows fewer rows and looks complete. Anyone reading it
+        would have no way to tell they were seeing two thirds of the slate.
+        """
+        if self.games_in_week <= 0 or self.games_with_lines >= self.games_in_week:
+            return None
+        missing = self.games_in_week - self.games_with_lines
+        return (
+            f"Lines for only {self.games_with_lines} of {self.games_in_week} games this "
+            f"week -- {missing} missing. This scan is a partial slate, not a complete one. "
+            f"Either the poll was cut short by the credit floor or no book had posted for "
+            f"those games yet."
+        )
+
     def summary(self) -> str:
         by_grade: dict[str, int] = defaultdict(int)
         for g in self.graded:
@@ -131,8 +154,16 @@ def scan_week(
         stmt = stmt.where(NflPropLine.week == week)
     lines = session.scalars(stmt).all()
 
+    def _slate_size() -> int:
+        stmt = select(NflGame)
+        if season:
+            stmt = stmt.where(NflGame.season == season)
+        if week:
+            stmt = stmt.where(NflGame.week == week)
+        return len(session.scalars(stmt).all()) if (season and week) else 0
+
     if not lines:
-        return ScanResult([], 0, 0, 0, week, season)
+        return ScanResult([], 0, 0, 0, week, season, games_in_week=_slate_size())
 
     # Latest observation per (game, market, player, book, side, point).
     latest: dict[tuple, NflPropLine] = {}
@@ -240,4 +271,6 @@ def scan_week(
         players_without_history=len(missing),
         week=week,
         season=season,
+        games_in_week=_slate_size(),
+        games_with_lines=len({line.game_id for line in latest.values()}),
     )

@@ -73,12 +73,28 @@ def _nb_pmf(k: int, mean: float, dispersion: float) -> float:
     )
 
 
-def distribution(mean: float, *, dispersion: float = DISPERSION) -> list[float]:
-    return [_nb_pmf(k, mean, dispersion) for k in range(MAX_STRIKEOUTS + 1)]
+def distribution(
+    mean: float, *, dispersion: float = DISPERSION, max_count: int = MAX_STRIKEOUTS
+) -> list[float]:
+    """PMF over 0..max_count. `max_count` is a parameter because the NFL count props
+    reuse this: receptions and carries have their own reachable ranges."""
+    return [_nb_pmf(k, mean, dispersion) for k in range(max_count + 1)]
 
 
-def prob_over_line(mean: float, line: float, *, dispersion: float = DISPERSION) -> float:
-    dist = distribution(mean, dispersion=dispersion)
+def prob_over_line(
+    mean: float,
+    line: float,
+    *,
+    dispersion: float = DISPERSION,
+    max_count: int = MAX_STRIKEOUTS,
+) -> float:
+    """P(count > line), summed over the integers that clear it.
+
+    Summing rather than integrating is the whole point for these markets: at a 2.5 line
+    almost all the probability sits on a few integers, and a continuous approximation
+    misprices exactly the numbers people bet.
+    """
+    dist = distribution(mean, dispersion=dispersion, max_count=max_count)
     return sum(p for k, p in enumerate(dist) if k > line)
 
 

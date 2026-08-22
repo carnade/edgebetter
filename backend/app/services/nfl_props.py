@@ -37,9 +37,29 @@ log = logging.getLogger(__name__)
 
 
 class Market(str, Enum):
+    """A prop market, as `volume x efficiency`.
+
+    The count markets are here because that decomposition makes them nearly free. Every
+    yards projection is already volume x efficiency, where volume is the reliable half (a
+    role, and roles are stable) and efficiency is the noisy half. Receptions and rush
+    attempts are markets on the volume term alone, so they drop the weakest part of the
+    model rather than adding anything to it.
+
+    Measured over 2021-2025, they really are easier to project -- relative error
+    (MAE/mean) against their yards equivalents:
+
+        receiving yards 0.624  ->  receptions     0.504   (19% less noisy)
+        rushing yards   0.589  ->  rush attempts  0.419   (29% less noisy)
+
+    That says the model *can* project them better, not that the edge is bigger; books
+    price volume markets tighter too.
+    """
+
     PASS_YDS = "pass_yds"
     RUSH_YDS = "rush_yds"
     RECV_YDS = "recv_yds"
+    RECEPTIONS = "receptions"
+    RUSH_ATT = "rush_att"
 
     @property
     def stat(self) -> str:
@@ -47,15 +67,29 @@ class Market(str, Enum):
             Market.PASS_YDS: "passing_yards",
             Market.RUSH_YDS: "rushing_yards",
             Market.RECV_YDS: "receiving_yards",
+            Market.RECEPTIONS: "receptions",
+            Market.RUSH_ATT: "carries",
         }[self]
 
     @property
     def volume(self) -> str:
-        """The attempt-like quantity that drives this market."""
+        """The attempt-like quantity that drives this market.
+
+        For receptions this is targets, which makes the efficiency term catch rate --
+        naturally bounded 0-1 and far better behaved than yards per target. Modelling
+        receptions this way also measured marginally better than decaying the reception
+        count directly (MAE 1.4493 vs 1.4525), so it wins on both architecture and
+        accuracy.
+
+        For rush attempts the stat *is* the volume, so efficiency collapses to 1.0 and the
+        projection is simply the player's decayed carries. See `is_pure_volume`.
+        """
         return {
             Market.PASS_YDS: "attempts",
             Market.RUSH_YDS: "carries",
             Market.RECV_YDS: "targets",
+            Market.RECEPTIONS: "targets",
+            Market.RUSH_ATT: "carries",
         }[self]
 
     @property
@@ -64,6 +98,8 @@ class Market(str, Enum):
             Market.PASS_YDS: ("QB",),
             Market.RUSH_YDS: ("RB", "QB", "WR"),
             Market.RECV_YDS: ("WR", "TE", "RB"),
+            Market.RECEPTIONS: ("WR", "TE", "RB"),
+            Market.RUSH_ATT: ("RB", "QB", "WR"),
         }[self]
 
     @property
@@ -72,7 +108,38 @@ class Market(str, Enum):
             Market.PASS_YDS: "Passing yards",
             Market.RUSH_YDS: "Rushing yards",
             Market.RECV_YDS: "Receiving yards",
+            Market.RECEPTIONS: "Receptions",
+            Market.RUSH_ATT: "Rush attempts",
         }[self]
+
+    @property
+    def discrete(self) -> bool:
+        """Whether outcomes are counts rather than a continuous quantity.
+
+        This decides the distribution, and it is not cosmetic. A gamma is continuous and
+        these markets are settled at lines like 2.5 receptions, where nearly all the
+        probability sits on a handful of integers. Approximating that with a smooth curve
+        misprices exactly the lines people bet.
+        """
+        return self in (Market.RECEPTIONS, Market.RUSH_ATT)
+
+    @property
+    def is_pure_volume(self) -> bool:
+        """Whether the market IS the volume, leaving no efficiency term to estimate.
+
+        True for rush attempts, where stat and volume are both carries. Projecting it
+        means projecting the player's own decayed carry count and nothing else.
+        """
+        return self.stat == self.volume
+
+    @property
+    def max_count(self) -> int:
+        """Support cap for the discrete distribution.
+
+        Set well past anything reachable so truncated tail mass is negligible rather than
+        merely small: the single-game records are 21 receptions and 45 carries.
+        """
+        return {Market.RECEPTIONS: 24, Market.RUSH_ATT: 50}.get(self, 0)
 
 
 # Games of history before a player's own rates outweigh the positional mean. Volume
@@ -163,6 +230,32 @@ MAX_OPPONENT_EFFECT = 0.25
 # make the model measurably worse.
 APPLY_OPPONENT_FACTOR = False
 
+# Overdispersion for the count markets: variance / mean.
+#
+# The two markets differ and cannot share a constant. Rush attempts are driven by game
+# script -- a blowout in either direction moves them hard -- while receptions track a
+# receiver's role far more closely.
+#
+# These were fitted on calibration, and that matters, because the obvious way to set them
+# gives the wrong answer. A player's own game-to-game variance/mean is 1.06 for receptions
+# and 1.76 for rush attempts, but the distribution has to cover our projection error too,
+# not only the player's inherent spread. Fitting on the worst calibration gap lands
+# meaningfully higher in both cases:
+#
+#                    var/mean   fitted    worst gap at fitted (full / 2025 holdout)
+#   receptions         1.06      1.25          0.023 / 0.036
+#   rush attempts      1.76      2.00          0.024 / 0.034
+#
+# Using the raw ratios instead would have left both markets overconfident -- receptions at
+# 0.040 and rush attempts at 0.114, the latter nearly five times worse than it needs to be.
+#
+# A value at or below 1.0 makes `_nb_pmf` collapse to Poisson exactly. Re-fit with the
+# dispersion sweep before changing these.
+COUNT_DISPERSION = {
+    "receptions": 1.25,
+    "rush_att": 2.00,
+}
+
 # Residual scale correction, fitted on 2021-2024 and checked on 2025.
 #
 # Even with volume shrinkage fixed, projections run a few percent hot: volume x efficiency
@@ -182,6 +275,14 @@ APPLY_OPPONENT_FACTOR = False
 SCALE_CORRECTION = {
     "recv_yds": 0.948,
     "rush_yds": 0.963,
+    # Both count markets run a touch hot for the same reason the yards markets did, and
+    # the correction is legitimate here by the same rule: the bias is uniform rather than
+    # concentrated at one end. 0.98 was chosen over 0.96 because it is the value that holds
+    # up on BOTH the full replay and the 2025 holdout rather than the best single number on
+    # either -- it takes receptions from bias +0.080 to +0.020 and rush attempts from +0.140
+    # to -0.011, and improves the holdout gap for both.
+    "receptions": 0.98,
+    "rush_att": 0.98,
     # Passing is deliberately left uncorrected. Its mean runs hot like the others, but
     # its quantiles do not -- it was the best-calibrated market before any correction
     # (worst gap 0.036) and applying the fitted 0.971 nearly doubled that to 0.067. The
@@ -250,26 +351,62 @@ class Calibration(str, Enum):
 #   rushing        0.026         0.017       18.82      19.04
 #   passing        0.036         0.020       64.53      65.22
 #
-# Every market now beats the player's own average, which none of them did before. The
-# holdout figures are better than the full-period ones in all three cases, so the bars
-# below are the conservative choice rather than the flattering one.
+#                receptions     0.013         0.028        1.44       1.45
+#                rush attempts  0.028         0.026        3.10       3.12
+#
+# Each bar is the WORSE of the two columns, rounded UP to three decimals. Rounding up
+# matters: receiving measures 0.0191 and rushing 0.0260, so rounding to nearest would have
+# set bars marginally BELOW the error they stand for. A bar that understates our own
+# measured error defeats the point of having one.
+#
+# Not the full-period figure, either. For the three yards
+# markets those coincide, since the holdout came in better. Receptions is the exception --
+# 0.013 across the full replay but 0.028 on 2025 -- and taking the flattering number there
+# would have halved its bar on the strength of the years it was fitted through.
+#
+# Worth reading honestly: receptions is measurably the easiest market to PROJECT (relative
+# error 0.504 against receiving yards' 0.624) and that did not translate into a tighter
+# bar. Being easier to model is not the same as being better understood out of sample.
+#
+# The two count markets tie their baseline on MAE rather than beating it, and for rush
+# attempts that is true by construction -- the projection is the player's decayed carry
+# count, which is exactly what the baseline is. Their value is not a better mean, it is a
+# correctly discrete distribution around it: at a 2.5 line the gamma used for yards is
+# simply the wrong shape.
 #
 # These numbers are the grading bar, so the system self-corrects: a market that calibrates
 # worse automatically demands a larger edge before a bet is called actionable.
 MARKET_CALIBRATION: dict[str, tuple[Calibration, float, str]] = {
     "recv_yds": (
         Calibration.VALIDATED,
-        0.019,
+        0.020,
         "Best calibrated of the three: worst deviation 1.9 points over 16,689 replayed "
         "player-games, and 1.6 on 3,734 held out of fitting. Now beats the player's own "
         "average. Treat probabilities as good to within about two points.",
     ),
     "rush_yds": (
         Calibration.VALIDATED,
-        0.026,
+        0.027,
         "Worst deviation 2.6 points over 7,923 replayed games, 1.7 on 1,785 held out. "
         "Now beats the player's own average, which it did not before the volume-shrinkage "
         "fix. Usable for sizing, with a slightly wider bar than receiving.",
+    ),
+    "receptions": (
+        Calibration.VALIDATED,
+        0.028,
+        "Best calibrated of all five across the full replay (1.3 points) but 2.8 on the "
+        "2025 holdout, and the bar takes the worse of the two. Modelled as targets x catch "
+        "rate, which is far better behaved than yards per target. Lines sit at 2.5 and 3.5, "
+        "where the discrete distribution matters more than the projection.",
+    ),
+    "rush_att": (
+        Calibration.VALIDATED,
+        0.028,
+        "Worst deviation 2.8 points over 7,923 replayed games, 2.6 on 1,785 held out. Pure "
+        "volume -- the projection is the player's own decayed carry count, so it ties the "
+        "baseline mean by construction and earns its keep on the distribution rather than "
+        "the number. The most overdispersed market of the five, because game script moves "
+        "carries hard in both directions.",
     ),
     "pass_yds": (
         Calibration.PROVISIONAL,
@@ -627,9 +764,18 @@ class PropProjection:
         return (self.sd**2) / self.expected
 
     def prob_over(self, line: float) -> float | None:
-        """P(yards > line). None when there is not enough to model."""
+        """P(outcome > line). None when there is not enough to model."""
         if self.expected <= 0 or self.sd <= 0 or line < 0:
             return None
+        if self.market.discrete:
+            from app.services.projections_props import prob_over_line
+
+            return prob_over_line(
+                self.expected,
+                line,
+                dispersion=COUNT_DISPERSION.get(self.market.value, 1.0),
+                max_count=self.market.max_count,
+            )
         return 1.0 - _gamma_cdf(line, self.shape, self.scale)
 
     @property
@@ -644,6 +790,23 @@ class PropProjection:
         """
         if self.expected <= 0 or self.sd <= 0:
             return None
+        if self.market.discrete:
+            # For a count the median is an integer: the smallest k with CDF >= 0.5. There
+            # is nothing to bisect, and reporting a fractional median next to a 2.5 line
+            # would invite reading it as a yards figure.
+            from app.services.projections_props import distribution
+
+            cumulative = 0.0
+            dist = distribution(
+                self.expected,
+                dispersion=COUNT_DISPERSION.get(self.market.value, 1.0),
+                max_count=self.market.max_count,
+            )
+            for k, pk in enumerate(dist):
+                cumulative += pk
+                if cumulative >= 0.5:
+                    return float(k)
+            return float(len(dist) - 1)
         lo, hi = 0.0, self.expected * 6.0
         for _ in range(60):
             mid = (lo + hi) / 2.0
@@ -745,22 +908,29 @@ def project_prop(
     scale = SCALE_CORRECTION.get(market.value, 1.0)
     expected = volume * efficiency * applied_opponent * context * scale
 
-    # Variability: the player's own spread once there is enough of it, otherwise the
-    # positional coefficient of variation.
-    if form.games >= 8 and form.yards > 0 and form.yards_sd > 0:
-        cv = form.yards_sd / form.yards
+    if market.discrete:
+        # Counts take their spread from the distribution itself: for a negative binomial
+        # the variance is mean x dispersion, so there is no coefficient of variation to
+        # estimate and none of the gamma machinery below applies. `sd` is still populated
+        # so the dataclass and its consumers stay uniform across markets.
+        sd = math.sqrt(max(expected, 0.0) * COUNT_DISPERSION.get(market.value, 1.0))
     else:
-        cv = baseline.cv
-        notes.append("variability taken from position, not enough player history")
-    # Bound the shape, and bound it *after* the multiplier so the cap actually binds.
-    #
-    # A gamma with CV above 1.0 has shape below 1, which puts its mode at zero -- the
-    # distribution then claims the single likeliest outcome for a starting receiver is no
-    # yards at all. That is how a player whose real record is 40% under a line came out at
-    # 63%. Capping CV at 1.0 keeps the shape unimodal with a mode above zero while still
-    # allowing the genuine right skew.
-    cv = max(0.35, min(1.0, cv * CV_MULTIPLIER.get(market.value, 1.0)))
-    sd = expected * cv
+        # Variability: the player's own spread once there is enough of it, otherwise the
+        # positional coefficient of variation.
+        if form.games >= 8 and form.yards > 0 and form.yards_sd > 0:
+            cv = form.yards_sd / form.yards
+        else:
+            cv = baseline.cv
+            notes.append("variability taken from position, not enough player history")
+        # Bound the shape, and bound it *after* the multiplier so the cap actually binds.
+        #
+        # A gamma with CV above 1.0 has shape below 1, which puts its mode at zero -- the
+        # distribution then claims the single likeliest outcome for a starting receiver is
+        # no yards at all. That is how a player whose real record is 40% under a line came
+        # out at 63%. Capping CV at 1.0 keeps the shape unimodal with a mode above zero
+        # while still allowing the genuine right skew.
+        cv = max(0.35, min(1.0, cv * CV_MULTIPLIER.get(market.value, 1.0)))
+        sd = expected * cv
 
     if form.games < 6:
         notes.append(f"only {form.games} prior games -- treat as indicative")

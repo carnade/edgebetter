@@ -61,19 +61,47 @@ def make(
 
 class TestCalibrationBar:
     def test_each_market_carries_its_measured_gap(self):
-        assert MARKET_CALIBRATION["recv_yds"][1] == pytest.approx(0.019)
-        assert MARKET_CALIBRATION["rush_yds"][1] == pytest.approx(0.026)
+        assert MARKET_CALIBRATION["recv_yds"][1] == pytest.approx(0.020)
+        assert MARKET_CALIBRATION["rush_yds"][1] == pytest.approx(0.027)
         assert MARKET_CALIBRATION["pass_yds"][1] == pytest.approx(0.036)
+        assert MARKET_CALIBRATION["receptions"][1] == pytest.approx(0.028)
+        assert MARKET_CALIBRATION["rush_att"][1] == pytest.approx(0.028)
 
     def test_every_bar_is_the_same_kind_of_measurement(self):
         """They were once a mix of mean and max gaps, which made them incomparable.
 
-        All three are now the worst gap over the same replay, so ordering them means
-        something. Receiving sits below the noise floor, which is the floor's job.
+        Every bar is now the worst gap over the same replay, taking the worse of the full
+        period and the holdout, so ordering them means something.
         """
-        recv, rush, pass_ = (MARKET_CALIBRATION[m][1] for m in ("recv_yds", "rush_yds", "pass_yds"))
+        recv, rush, pass_ = (
+            MARKET_CALIBRATION[m][1] for m in ("recv_yds", "rush_yds", "pass_yds")
+        )
         assert recv < rush < pass_
-        assert recv < MIN_MEANINGFUL_EDGE
+
+    def test_receiving_is_bounded_by_the_noise_floor_not_its_own_error(self):
+        """Receiving now measures at the floor rather than under it.
+
+        Its worst gap is 0.0191, which rounds up to exactly MIN_MEANINGFUL_EDGE, so the
+        floor is what binds. That is the floor doing its job: even a market we model this
+        well needs a minimum edge before a bet is worth making.
+        """
+        recv = MARKET_CALIBRATION["recv_yds"][1]
+        assert recv <= MIN_MEANINGFUL_EDGE
+        assert make(market=Market.RECV_YDS).required_edge == pytest.approx(
+            MIN_MEANINGFUL_EDGE
+        )
+
+    def test_bars_never_understate_the_measured_error(self):
+        """Bars are rounded UP, never to nearest.
+
+        Receiving measured 0.0191 and rushing 0.0260; rounding to nearest would have set
+        both marginally below the error they stand for, which defeats the point of the
+        bar. These are the ceiling values.
+        """
+        assert MARKET_CALIBRATION["recv_yds"][1] >= 0.0191
+        assert MARKET_CALIBRATION["rush_yds"][1] >= 0.0261
+        assert MARKET_CALIBRATION["receptions"][1] >= 0.0278
+        assert MARKET_CALIBRATION["rush_att"][1] >= 0.0276
 
     def test_bar_never_falls_below_the_noise_floor(self):
         """Even a perfectly calibrated market needs a minimum edge to be worth acting on."""

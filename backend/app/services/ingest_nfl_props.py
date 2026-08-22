@@ -28,10 +28,21 @@ from app.services.ingest_nfl_odds import SPORT_KEY
 log = logging.getLogger(__name__)
 
 # Odds API market keys mapped to our internal markets.
+#
+# The two count markets are here because they price the half of the model that actually
+# works. A yards projection is volume x efficiency, where volume is a stable role and
+# efficiency is the noisy part; receptions and rush attempts are markets on volume alone.
+# Measured over 2021-2025 they carry 19% and 29% less relative error than their yards
+# equivalents.
+#
+# Books post RECEPTIONS, not targets -- there is no targets market -- which is why
+# receptions is modelled as targets x catch rate rather than as a target count.
 PROP_MARKETS = {
     "player_reception_yds": "recv_yds",
     "player_rush_yds": "rush_yds",
     "player_pass_yds": "pass_yds",
+    "player_receptions": "receptions",
+    "player_rush_attempts": "rush_att",
 }
 
 
@@ -43,14 +54,32 @@ class PropIngestResult:
     credits_remaining: int | None = None
     skipped: list[str] = field(default_factory=list)
     dry_run: bool = False
+    # Games we intended to poll, and whether the budget cut the run short. A truncated
+    # week is the dangerous failure here: it looks exactly like a complete one downstream,
+    # because the games that were never polled simply have no lines.
+    games_available: int = 0
+    truncated: bool = False
+
+    @property
+    def missed_games(self) -> int:
+        return max(0, self.games_available - self.polled_games)
 
     def summary(self) -> str:
         if self.dry_run:
-            return f"DRY RUN: would poll {self.polled_games} games for {self.credits_used} credits"
-        return (
+            return (
+                f"DRY RUN: would poll {self.polled_games} games for "
+                f"{self.credits_used} credits"
+            )
+        base = (
             f"{self.lines_written} lines from {self.polled_games} games, "
             f"{self.credits_used} credits used, {self.credits_remaining} remaining"
         )
+        if self.truncated:
+            base += (
+                f" -- TRUNCATED: {self.missed_games} of {self.games_available} games were "
+                f"never polled, the slate is incomplete"
+            )
+        return base
 
 
 def _resolve_player_ids(session: Session, season: int) -> dict[str, str]:
@@ -103,8 +132,20 @@ def poll_nfl_props(
 
     if limit:
         games = games[:limit]
+    result.games_available = len(games)
 
-    markets = list(PROP_MARKETS)
+    # Which markets to request comes from config so the weekly bill can be changed without
+    # a code edit. Unknown keys are dropped rather than sent: an unrecognised market would
+    # be billed and return nothing we could store.
+    configured = settings.nfl_prop_markets_list
+    markets = [m for m in configured if m in PROP_MARKETS]
+    unknown = [m for m in configured if m not in PROP_MARKETS]
+    if unknown:
+        result.skipped.append(f"ignoring unknown market keys: {', '.join(unknown)}")
+        log.warning("nfl props: unknown market keys in config: %s", unknown)
+    if not markets:
+        result.skipped.append("no valid NFL prop markets configured")
+        return result
     regions = max(1, len([r for r in settings.odds_regions.split(",") if r.strip()]))
     cost_per_game = len(markets) * regions
 
@@ -144,7 +185,12 @@ def poll_nfl_props(
 
         # Re-checked immediately before each call so no caller can outrun the floor.
         if not can_spend(session, cost_per_game):
-            result.skipped.append("credit reserve reached mid-run")
+            result.truncated = True
+            result.skipped.append(
+                f"credit reserve reached mid-run -- stopped after {result.polled_games} "
+                f"of {result.games_available} games"
+            )
+            log.warning("nfl props: %s", result.skipped[-1])
             break
 
         started = datetime.now(UTC)

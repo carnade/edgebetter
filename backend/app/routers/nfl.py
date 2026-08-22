@@ -681,6 +681,9 @@ class ScanOut(BaseModel):
     players_without_history: int
     one_sided_warning: str | None = None
     coverage_warning: str | None = None
+    missing_games_warning: str | None = None
+    games_in_week: int = 0
+    games_with_lines: int = 0
     grade_counts: dict[str, int] = {}
     props: list[GradedPropOut] = []
 
@@ -716,6 +719,9 @@ def props_scan(
         players_without_history=result.players_without_history,
         one_sided_warning=result.one_sided_warning,
         coverage_warning=result.coverage_warning,
+        missing_games_warning=result.missing_games_warning,
+        games_in_week=result.games_in_week,
+        games_with_lines=result.games_with_lines,
         grade_counts=dict(Counter(g.grade.value for g in result.graded)),
         props=[
             GradedPropOut(
