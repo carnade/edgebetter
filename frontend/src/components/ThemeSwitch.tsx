@@ -7,9 +7,12 @@
  */
 import { useEffect, useState } from "react";
 
+// terminal is still defined in themes.css and reachable by setting the stored key by
+// hand. It is off the switcher because it is the one being replaced, not because it was
+// deleted.
 const THEMES = [
   { key: "slate", label: "SLATE", hint: "Neutral chrome, colour reserved for data" },
-  { key: "terminal", label: "TERMINAL", hint: "The original phosphor green" },
+  { key: "midnight", label: "MIDNIGHT", hint: "Deep navy with a light blue interface" },
   { key: "daylight", label: "DAYLIGHT", hint: "Light: paper and ink" },
 ];
 

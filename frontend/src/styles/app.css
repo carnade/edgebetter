@@ -37,8 +37,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(900px 500px at 18% -10%, rgba(var(--green-rgb), 0.07), transparent 70%),
-    radial-gradient(700px 400px at 92% 0%, rgba(var(--green-rgb), 0.04), transparent 70%);
+    radial-gradient(900px 500px at 18% -10%, rgba(var(--accent-rgb), 0.07), transparent 70%),
+    radial-gradient(700px 400px at 92% 0%, rgba(var(--accent-rgb), 0.04), transparent 70%);
   z-index: 0;
 }
 
@@ -67,7 +67,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   align-items: center;
   font-size: 10px;
   letter-spacing: 0.22em;
-  color: var(--green-dim);
+  color: var(--accent-dim);
   padding-right: 18px;
   margin-right: 4px;
   border-right: 1px solid var(--line-soft);
@@ -86,7 +86,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   transition: color 140ms ease;
 }
 .rail-link:hover { color: var(--text); }
-.rail-link.active { color: var(--green-bright); }
+.rail-link.active { color: var(--accent-bright); }
 .rail-link.active::after {
   content: "";
   position: absolute;
@@ -94,8 +94,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   right: 15px;
   bottom: -1px;
   height: 2px;
-  background: var(--green);
-  box-shadow: 0 0 10px var(--green-glow);
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .rail-status {
@@ -107,7 +107,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--muted-dim);
 }
 .rail-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-dim); }
-.rail-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green-glow); }
+.rail-dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
 .rail-dot.warn { background: var(--amber); }
 
 /* ------------------------------------------------------------------- layout */
@@ -133,7 +133,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   transition: color 140ms ease, border-color 140ms ease;
 }
 .subnav-link:hover { color: var(--text); }
-.subnav-link.active { color: var(--text-strong); border-bottom-color: var(--green-dim); }
+.subnav-link.active { color: var(--text-strong); border-bottom-color: var(--accent-dim); }
 
 .page { padding: 18px 14px 64px; max-width: 1320px; margin: 0 auto; }
 
@@ -181,7 +181,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .banner strong { color: var(--text); font-weight: 600; }
 .banner.warn { border-color: rgba(var(--amber-rgb), 0.28); }
 .banner.warn .banner-key { color: var(--amber); }
-.banner-key { color: var(--green); font-size: 10px; letter-spacing: 0.14em; white-space: nowrap; }
+.banner-key { color: var(--accent); font-size: 10px; letter-spacing: 0.14em; white-space: nowrap; }
 
 /* --------------------------------------------------------------- game cards */
 .slate { display: grid; gap: 10px; }
@@ -311,7 +311,7 @@ thead th {
 }
 thead th.label, tbody td.label { text-align: left; }
 thead th:hover { color: var(--text); }
-thead th.sorted { color: var(--green); }
+thead th.sorted { color: var(--accent); }
 
 tbody td {
   text-align: right;
@@ -358,7 +358,7 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* ---------------------------------------------------------------- a11y/motion */
 :focus-visible {
-  outline: 2px solid var(--green);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -404,7 +404,7 @@ tbody tr:last-child td { border-bottom: none; }
   display: grid;
   gap: 2px;
 }
-.band.strict { border-color: rgba(var(--green-rgb), 0.32); }
+.band.strict { border-color: rgba(var(--accent-rgb), 0.32); }
 .band-label { font-size: 8.5px; letter-spacing: 0.16em; color: var(--muted-dim); }
 .band b { font-size: 17px; font-weight: 600; color: var(--green-bright); }
 .band.strict b { color: var(--green-bright); }
@@ -520,8 +520,8 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .preset:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.24); }
 .preset.active {
-  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
-  background: rgba(var(--green-rgb), 0.08);
+  color: var(--accent-bright); border-color: rgba(var(--accent-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 /* Scan filters. The table is small today and will be several thousand rows once every
@@ -539,7 +539,7 @@ tbody tr:last-child td { border-bottom: none; }
 .scan-filter-row select { min-width: 128px; }
 .scan-filter-row input[type="search"] { min-width: 130px; }
 .scan-filter-row select:focus-visible,
-.scan-filter-row input:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.scan-filter-row input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .scan-toggle {
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
@@ -549,8 +549,8 @@ tbody tr:last-child td { border-bottom: none; }
 .scan-toggle:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.24); }
 .scan-toggle input { accent-color: var(--green); margin: 0; }
 .scan-toggle:has(input:checked) {
-  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
-  background: rgba(var(--green-rgb), 0.08);
+  color: var(--accent-bright); border-color: rgba(var(--accent-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .split-head {
@@ -618,10 +618,10 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .theme-chip:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.32); }
 .theme-chip.active {
-  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
-  background: rgba(var(--green-rgb), 0.08);
+  color: var(--accent-bright); border-color: rgba(var(--accent-rgb), 0.42);
+  background: rgba(var(--accent-rgb), 0.08);
 }
-.theme-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.theme-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* --------------------------------------------------------------- nfl props */
 .prop-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
@@ -635,7 +635,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .prop-controls input { min-width: 90px; }
 .prop-controls select:focus-visible,
-.prop-controls input:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.prop-controls input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* The verdict at the odds you can actually get. The scan finds candidates against US
    lines; this is where the bet is decided, since a grade belongs to one number at one

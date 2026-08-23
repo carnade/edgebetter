@@ -39,6 +39,15 @@
   --green-rgb: 67, 217, 139;
   --green-glow: rgba(67, 217, 139, 0.35);
 
+  /* Interface accent: active states, focus, the ambient glow. Separate from
+     --green because green means "value" in the data and must not move with the
+     palette -- a blue theme still wants a positive edge to read as positive. */
+  --accent: #43d98b;
+  --accent-bright: #6cf5ab;
+  --accent-dim: #369565;   /* 4.66 — carries the wordmark */
+  --accent-rgb: 67, 217, 139;
+  --accent-glow: rgba(67, 217, 139, 0.35);
+
   --text: #e3eaf2;           /* 15.64 */
   --text-strong: #f7fafd;    /* 18.10 */
   --muted: #9aabbd;          /*  8.07 */
@@ -76,6 +85,15 @@
   --green-dim: #1e7a55;
   --green-rgb: 61, 220, 145;
   --green-glow: rgba(61, 220, 145, 0.35);
+
+  /* Interface accent: active states, focus, the ambient glow. Separate from
+     --green because green means "value" in the data and must not move with the
+     palette -- a blue theme still wants a positive edge to read as positive. */
+  --accent: #3ddc91;
+  --accent-bright: #6affb0;
+  --accent-dim: #1e7a55;
+  --accent-rgb: 61, 220, 145;
+  --accent-glow: rgba(61, 220, 145, 0.35);
 
   --text: #d6e8de;
   --text-strong: #eafff4;
@@ -116,6 +134,15 @@
   --green-rgb: 13, 128, 76;
   --green-glow: rgba(13, 128, 76, 0.3);
 
+  /* Interface accent: active states, focus, the ambient glow. Separate from
+     --green because green means "value" in the data and must not move with the
+     palette -- a blue theme still wants a positive edge to read as positive. */
+  --accent: #0d804c;
+  --accent-bright: #0a6b3f;
+  --accent-dim: #7bb096;
+  --accent-rgb: 13, 128, 76;
+  --accent-glow: rgba(13, 128, 76, 0.35);
+
   --text: #1a212b;           /* 15.11 */
   --text-strong: #0b0f14;    /* 17.93 */
   --muted: #53637a;          /*  5.71 */
@@ -125,4 +152,54 @@
   --amber-rgb: 149, 103, 4;
   --red: #c0362f;            /*  5.14 */
   --red-rgb: 192, 54, 47;
+}
+
+
+/* ---------------------------------------------------------------- midnight
+ * Deep navy, light blue.
+ *
+ * The same principle as slate — chrome in one family, data in another — but taking the
+ * interface further from the data rather than merely draining it. Slate steps back into
+ * grey; this steps sideways into blue, so a green number is unmistakably a statement about
+ * a number and never part of the furniture.
+ *
+ * Which is what --accent buys. Blue takes the active tab, the focus ring, the wordmark and
+ * the ambient glow, while green keeps its one job: this bet is worth making. A palette
+ * that had to use a single colour for both would force a choice between a blue interface
+ * and a readable positive edge.
+ */
+[data-theme="midnight"] {
+  --bg: #080f1c;
+  --bg-raised: #101a2c;
+  --scrim-rgb: 8, 15, 28;
+  --tint-rgb: 255, 255, 255;
+  --shadow-rgb: 0, 0, 0;
+
+  --surface: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --line-rgb: 132, 164, 205;
+  --line: rgba(132, 164, 205, 0.17);
+  --line-soft: rgba(132, 164, 205, 0.09);
+
+  --green: #3fd68c;          /* 10.23 — still means "value", on every theme */
+  --green-bright: #6cf5ab;   /* 13.96 */
+  --green-dim: #2f8a5e;
+  --green-rgb: 63, 214, 140;
+  --green-glow: rgba(63, 214, 140, 0.35);
+
+  --text: #e4ebf7;           /* 16.00 */
+  --text-strong: #f8fafe;    /* 18.35 */
+  --muted: #9cb0cf;          /*  8.70 */
+  --muted-dim: #7e93b4;      /*  6.13 — the best floor of the four */
+
+  --amber: #f2b53c;          /* 10.45 */
+  --amber-rgb: 242, 181, 60;
+  --red: #ff6f6b;            /*  7.06 */
+  --red-rgb: 255, 111, 107;
+
+  --accent: #58bdf5;         /*  9.14 */
+  --accent-bright: #8ad6ff;  /* 12.00 */
+  --accent-dim: #568ab0;     /*  4.69 — carries the wordmark */
+  --accent-rgb: 88, 189, 245;
+  --accent-glow: rgba(88, 189, 245, 0.35);
 }
