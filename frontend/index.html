@@ -9,10 +9,12 @@
 
     <!-- Served from frontend/public, which Vite exposes at / in dev and copies into
          dist/ on build, so these resolve identically behind nginx in production.
-         32px is what a browser tab actually renders; the 512 is kept for high-DPI and
-         for installing to a home screen. -->
+         32px is what a browser tab actually renders; icon.png is the full-resolution
+         master for high-DPI and home-screen installs. Both are cropped to the artwork:
+         the original had 117px of transparent padding top and bottom, which at a 16px
+         tab left it drawing at 12x9 inside its own frame. -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="icon" type="image/png" sizes="any" href="/icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
