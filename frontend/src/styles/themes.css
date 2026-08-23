@@ -139,7 +139,7 @@
      palette -- a blue theme still wants a positive edge to read as positive. */
   --accent: #0d804c;
   --accent-bright: #0a6b3f;
-  --accent-dim: #7bb096;
+  --accent-dim: #537765;   /* 4.67 — carries the wordmark */
   --accent-rgb: 13, 128, 76;
   --accent-glow: rgba(13, 128, 76, 0.35);
 
