@@ -1,29 +1,13 @@
 /* EdgeBetter — a sportsbook trading terminal.
-   Phosphor green on green-black: the palette reads as an exchange display, which is
-   what this is. Monospace dominates because odds screens are monospaced and numeric
-   alignment is structural here, not cosmetic. */
+   Monospace dominates because odds screens are monospaced and numeric alignment is
+   structural here, not cosmetic. Colour is themed: see themes.css. Nothing below should
+   name a colour directly — a literal here is a rule one theme will get wrong. */
 
+@import "./themes.css";
+
+/* Non-colour tokens. The palettes live in themes.css, keyed by [data-theme], so a scheme
+   can be swapped without touching a single rule below. */
 :root {
-  --bg: #06100c;
-  --bg-raised: #08160f;
-  --surface: rgba(198, 255, 224, 0.035);
-  --surface-hover: rgba(198, 255, 224, 0.06);
-  --line: rgba(160, 255, 205, 0.12);
-  --line-soft: rgba(160, 255, 205, 0.07);
-
-  --green: #3ddc91;
-  --green-bright: #6affb0;
-  --green-dim: #1e7a55;
-  --green-glow: rgba(61, 220, 145, 0.35);
-
-  --text: #d6e8de;
-  --text-strong: #eafff4;
-  --muted: #6e8a7d;
-  --muted-dim: #4a6157;
-
-  --amber: #e8b44a;
-  --red: #e0625e;
-
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
 
@@ -53,8 +37,8 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(900px 500px at 18% -10%, rgba(61, 220, 145, 0.07), transparent 70%),
-    radial-gradient(700px 400px at 92% 0%, rgba(61, 220, 145, 0.04), transparent 70%);
+    radial-gradient(900px 500px at 18% -10%, rgba(var(--green-rgb), 0.07), transparent 70%),
+    radial-gradient(700px 400px at 92% 0%, rgba(var(--green-rgb), 0.04), transparent 70%);
   z-index: 0;
 }
 
@@ -72,7 +56,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   align-items: stretch;
   gap: 0;
   padding: 0 14px;
-  background: rgba(6, 16, 12, 0.82);
+  background: rgba(var(--scrim-rgb), 0.82);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   border-bottom: 1px solid var(--line);
@@ -115,7 +99,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 .rail-status {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -180,7 +163,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: var(--radius);
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 1px 0 rgba(var(--tint-rgb), 0.03) inset, 0 10px 30px -18px rgba(var(--shadow-rgb), 0.9);
 }
 
 .banner {
@@ -196,7 +179,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--muted);
 }
 .banner strong { color: var(--text); font-weight: 600; }
-.banner.warn { border-color: rgba(232, 180, 74, 0.28); }
+.banner.warn { border-color: rgba(var(--amber-rgb), 0.28); }
 .banner.warn .banner-key { color: var(--amber); }
 .banner-key { color: var(--green); font-size: 10px; letter-spacing: 0.14em; white-space: nowrap; }
 
@@ -210,7 +193,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   padding: 13px 15px;
   transition: border-color 140ms ease, background 140ms ease;
 }
-.game:hover { border-color: rgba(160, 255, 205, 0.22); background: var(--surface-hover); }
+.game:hover { border-color: rgba(var(--line-rgb), 0.22); background: var(--surface-hover); }
 
 .game-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
 .game-time { font-size: 10.5px; color: var(--muted-dim); letter-spacing: 0.06em; }
@@ -294,13 +277,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   padding: 2px 7px; border-radius: 2px;
   border: 1px solid var(--line); color: var(--muted);
 }
-.ev.pos { color: var(--green-bright); border-color: rgba(61, 220, 145, 0.4); background: rgba(61, 220, 145, 0.08); }
-.ev.thin { color: var(--amber); border-color: rgba(232, 180, 74, 0.35); background: rgba(232, 180, 74, 0.07); }
-.ev.neg { color: var(--red); border-color: rgba(224, 98, 94, 0.3); }
+.ev.pos { color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.4); background: rgba(var(--green-rgb), 0.08); }
+.ev.thin { color: var(--amber); border-color: rgba(var(--amber-rgb), 0.35); background: rgba(var(--amber-rgb), 0.07); }
+.ev.neg { color: var(--red); border-color: rgba(var(--red-rgb), 0.3); }
 
 .agree {
   font-size: 9px; letter-spacing: 0.12em; color: var(--green);
-  border: 1px solid rgba(61, 220, 145, 0.3); border-radius: 2px; padding: 1px 5px;
+  border: 1px solid rgba(var(--green-rgb), 0.3); border-radius: 2px; padding: 1px 5px;
 }
 
 .tag-est {
@@ -421,7 +404,7 @@ tbody tr:last-child td { border-bottom: none; }
   display: grid;
   gap: 2px;
 }
-.band.strict { border-color: rgba(61, 220, 145, 0.32); }
+.band.strict { border-color: rgba(var(--green-rgb), 0.32); }
 .band-label { font-size: 8.5px; letter-spacing: 0.16em; color: var(--muted-dim); }
 .band b { font-size: 17px; font-weight: 600; color: var(--green-bright); }
 .band.strict b { color: var(--green-bright); }
@@ -471,10 +454,10 @@ tbody tr:last-child td { border-bottom: none; }
   border: 1px solid var(--line-soft);
   border-radius: 2px;
   padding: 11px 12px;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(var(--shadow-rgb), 0.18);
 }
 .gate-card.is-bet {
-  border-color: rgba(61, 220, 145, 0.4);
+  border-color: rgba(var(--green-rgb), 0.4);
   box-shadow: 0 0 22px -12px var(--green-glow);
 }
 
@@ -535,10 +518,10 @@ tbody tr:last-child td { border-bottom: none; }
   border: 1px solid var(--line); border-radius: 2px; color: var(--muted);
   transition: color 140ms ease, border-color 140ms ease;
 }
-.preset:hover { color: var(--text); border-color: rgba(160, 255, 205, 0.24); }
+.preset:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.24); }
 .preset.active {
-  color: var(--green-bright); border-color: rgba(61, 220, 145, 0.42);
-  background: rgba(61, 220, 145, 0.08);
+  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
+  background: rgba(var(--green-rgb), 0.08);
 }
 
 /* Scan filters. The table is small today and will be several thousand rows once every
@@ -563,11 +546,11 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 10.5px; letter-spacing: 0.04em; color: var(--muted);
   border: 1px solid var(--line); border-radius: 2px; padding: 5px 9px;
 }
-.scan-toggle:hover { color: var(--text); border-color: rgba(160, 255, 205, 0.24); }
+.scan-toggle:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.24); }
 .scan-toggle input { accent-color: var(--green); margin: 0; }
 .scan-toggle:has(input:checked) {
-  color: var(--green-bright); border-color: rgba(61, 220, 145, 0.42);
-  background: rgba(61, 220, 145, 0.08);
+  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
+  background: rgba(var(--green-rgb), 0.08);
 }
 
 .split-head {
@@ -582,7 +565,7 @@ tbody tr:last-child td { border-bottom: none; }
 .ci { padding: 2px 0; }
 .ci-track {
   position: relative; display: block; height: 8px;
-  background: rgba(255, 255, 255, 0.03); border-radius: 2px;
+  background: rgba(var(--tint-rgb), 0.03); border-radius: 2px;
 }
 .ci-span {
   position: absolute; top: 2px; height: 4px;
@@ -603,10 +586,10 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 8.5px; letter-spacing: 0.14em; padding: 2px 6px;
   border-radius: 2px; border: 1px solid var(--line-soft); color: var(--muted-dim);
 }
-.band-noise { color: var(--red); border-color: rgba(224, 98, 94, 0.3); }
-.band-thin { color: var(--amber); border-color: rgba(232, 180, 74, 0.3); }
+.band-noise { color: var(--red); border-color: rgba(var(--red-rgb), 0.3); }
+.band-thin { color: var(--amber); border-color: rgba(var(--amber-rgb), 0.3); }
 .band-mod { color: var(--text); }
-.band-solid { color: var(--green-bright); border-color: rgba(61, 220, 145, 0.35); }
+.band-solid { color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.35); }
 
 /* ------------------------------------------------------------- nfl factors */
 .factor { padding: 15px 17px; margin-bottom: 14px; }
@@ -624,6 +607,21 @@ tbody tr:last-child td { border-bottom: none; }
   margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--line-soft);
   font-size: 11.5px; color: var(--muted); line-height: 1.55; max-width: 760px;
 }
+
+/* Palette switcher. Temporary, for choosing between the three schemes. */
+.theme-switch { display: flex; gap: 4px; margin-left: auto; margin-right: 14px; }
+.theme-chip {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.12em;
+  padding: 3px 7px; border: 1px solid var(--line); border-radius: 2px;
+  color: var(--muted-dim); background: transparent; cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.theme-chip:hover { color: var(--text); border-color: rgba(var(--line-rgb), 0.32); }
+.theme-chip.active {
+  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.42);
+  background: rgba(var(--green-rgb), 0.08);
+}
+.theme-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
 
 /* --------------------------------------------------------------- nfl props */
 .prop-controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
@@ -651,9 +649,9 @@ tbody tr:last-child td { border-bottom: none; }
 .prop-priced > div { display: grid; gap: 3px; }
 .prop-priced b { font-size: 17px; color: var(--text-strong); }
 .prop-priced span { font-size: 8.5px; letter-spacing: 0.15em; color: var(--muted-dim); }
-.prop-priced.grade-a { border-color: rgba(61, 220, 145, 0.45); }
-.prop-priced.grade-b { border-color: rgba(61, 220, 145, 0.26); }
-.prop-priced.grade-d { border-color: rgba(230, 110, 110, 0.28); }
+.prop-priced.grade-a { border-color: rgba(var(--green-rgb), 0.45); }
+.prop-priced.grade-b { border-color: rgba(var(--green-rgb), 0.26); }
+.prop-priced.grade-d { border-color: rgba(var(--red-rgb), 0.28); }
 
 .prop-form {
   display: flex; align-items: center; gap: 10px;
@@ -675,16 +673,16 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 10px; font-weight: 600; padding: 1px 4px; border-radius: 2px;
   border: 1px solid var(--line-soft);
 }
-.grade-a { color: var(--green-bright); border-color: rgba(61,220,145,0.5); background: rgba(61,220,145,0.1); }
-.grade-b { color: var(--green); border-color: rgba(61,220,145,0.28); }
-.grade-c { color: var(--amber); border-color: rgba(232,180,74,0.28); }
+.grade-a { color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.5); background: rgba(var(--green-rgb), 0.1); }
+.grade-b { color: var(--green); border-color: rgba(var(--green-rgb), 0.28); }
+.grade-c { color: var(--amber); border-color: rgba(var(--amber-rgb), 0.28); }
 .grade-d { color: var(--muted-dim); }
 
 /* Edge relative to the bar it must clear; the tick marks 1.0x. */
 .edgebar { display: flex; align-items: center; gap: 7px; justify-content: flex-end; }
 .edgebar-track {
   position: relative; display: block; width: 52px; height: 5px;
-  background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden;
+  background: rgba(var(--tint-rgb), 0.04); border-radius: 2px; overflow: hidden;
 }
 .edgebar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--green-dim); }
 .edgebar-bar { position: absolute; top: -2px; width: 1px; height: 9px; background: var(--amber); opacity: 0.8; }
@@ -708,8 +706,8 @@ tbody tr:last-child td { border-bottom: none; }
 .row-warn {
   display: inline-block; margin-top: 4px; white-space: normal;
   font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--amber); border: 1px solid rgba(240,180,90,0.32);
-  background: rgba(240,180,90,0.08);
+  color: var(--amber); border: 1px solid rgba(var(--amber-rgb), 0.32);
+  background: rgba(var(--amber-rgb), 0.08);
   padding: 1px 5px; border-radius: 2px; cursor: help;
 }
 
@@ -721,8 +719,8 @@ tbody tr:last-child td { border-bottom: none; }
   padding: 1px 3px; border-radius: 2px; border: 1px solid transparent;
 }
 .recent-games i.over {
-  color: var(--green-bright); border-color: rgba(61,220,145,0.3);
-  background: rgba(61,220,145,0.08);
+  color: var(--green-bright); border-color: rgba(var(--green-rgb), 0.3);
+  background: rgba(var(--green-rgb), 0.08);
 }
 .recent-games i.under { color: var(--muted); border-color: var(--line-soft); }
 .recent-tally { font-size: 9.5px; white-space: nowrap; }

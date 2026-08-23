@@ -1,0 +1,128 @@
+/* Palettes. Structure lives in app.css; only colour lives here.
+ *
+ * Accents are exposed as RGB components as well as hex, because the stylesheet composes
+ * them at a dozen different alphas — rgba(var(--green-rgb), 0.08) for a row tint, 0.42 for
+ * an active border. Hardcoding those meant a theme could change the text and leave every
+ * tint behind, still glowing the old colour.
+ *
+ * Every foreground here is checked against both backgrounds at WCAG AA (4.5:1). That is
+ * not decoration: the smallest text in this UI is 8.5px, so none of it qualifies for the
+ * large-text exemption, and the palette this replaced had its secondary text at 2.89:1.
+ */
+
+/* ---------------------------------------------------------------- slate (default)
+ * Neutral chrome, coloured data.
+ *
+ * The thesis, and the reason this exists: green means "positive edge" here and red means
+ * "no value". Spending green on the furniture too — background, borders, body text,
+ * secondary text — leaves the data nothing to stand against, and leaves secondary text
+ * differing from the accent by luminance alone. Neutral slate gives the semantic colours
+ * somewhere to land and separates the hierarchy by hue as well as brightness.
+ */
+:root,
+[data-theme="slate"] {
+  --bg: #0c1116;
+  --bg-raised: #141b23;
+  --scrim-rgb: 12, 17, 22;
+  --tint-rgb: 255, 255, 255;
+  --shadow-rgb: 0, 0, 0;
+
+  --surface: rgba(255, 255, 255, 0.028);
+  --surface-hover: rgba(255, 255, 255, 0.055);
+  --line-rgb: 148, 173, 200;
+  --line: rgba(148, 173, 200, 0.16);
+  --line-soft: rgba(148, 173, 200, 0.09);
+
+  --green: #43d98b;          /* 10.42 on bg */
+  --green-bright: #6cf5ab;   /* 13.80 */
+  --green-dim: #2a8f5c;
+  --green-rgb: 67, 217, 139;
+  --green-glow: rgba(67, 217, 139, 0.35);
+
+  --text: #e3eaf2;           /* 15.64 */
+  --text-strong: #f7fafd;    /* 18.10 */
+  --muted: #9aabbd;          /*  8.07 */
+  --muted-dim: #7d90a4;      /*  5.78 — was 2.89 */
+
+  --amber: #f2b53c;          /* 10.34 */
+  --amber-rgb: 242, 181, 60;
+  --red: #ff6f6b;            /*  6.99 */
+  --red-rgb: 255, 111, 107;
+}
+
+/* ---------------------------------------------------------------- terminal (original)
+ * Phosphor green on green-black, kept as it was.
+ *
+ * Secondary text sits at 2.89:1 against its background, below the 4.5:1 AA floor, which
+ * is what made the small print hard to read. Raising it would make this a different
+ * palette rather than the original, so it is preserved unchanged and simply not the
+ * default.
+ */
+[data-theme="terminal"] {
+  --bg: #06100c;
+  --bg-raised: #08160f;
+  --scrim-rgb: 6, 16, 12;
+  --tint-rgb: 198, 255, 224;
+  --shadow-rgb: 0, 0, 0;
+
+  --surface: rgba(198, 255, 224, 0.035);
+  --surface-hover: rgba(198, 255, 224, 0.06);
+  --line-rgb: 160, 255, 205;
+  --line: rgba(160, 255, 205, 0.12);
+  --line-soft: rgba(160, 255, 205, 0.07);
+
+  --green: #3ddc91;
+  --green-bright: #6affb0;
+  --green-dim: #1e7a55;
+  --green-rgb: 61, 220, 145;
+  --green-glow: rgba(61, 220, 145, 0.35);
+
+  --text: #d6e8de;
+  --text-strong: #eafff4;
+  --muted: #6e8a7d;
+  --muted-dim: #4a6157;
+
+  --amber: #e8b44a;
+  --amber-rgb: 232, 180, 74;
+  --red: #e0625e;
+  --red-rgb: 224, 98, 94;
+}
+
+/* ---------------------------------------------------------------- daylight
+ * Paper and ink.
+ *
+ * Dense numeric tables on white is not a concession to anyone — it is what financial
+ * pages and form guides have always done, and it is the medium this content came from.
+ * The accents are darker than their dark-theme counterparts because a colour that reads
+ * as bright on near-black is nearly invisible on paper: green goes from #43d98b to
+ * #0d804c to hold 4.65:1.
+ */
+[data-theme="daylight"] {
+  --bg: #f6f7f9;
+  --bg-raised: #ffffff;
+  --scrim-rgb: 246, 247, 249;
+  --tint-rgb: 20, 30, 44;
+  --shadow-rgb: 30, 41, 59;
+
+  --surface: rgba(20, 30, 44, 0.035);
+  --surface-hover: rgba(20, 30, 44, 0.06);
+  --line-rgb: 90, 106, 128;
+  --line: rgba(90, 106, 128, 0.22);
+  --line-soft: rgba(90, 106, 128, 0.12);
+
+  --green: #0d804c;          /* 4.65 on bg */
+  --green-bright: #0a6b3f;   /* 6.15 */
+  --green-dim: #7bb096;
+  --green-rgb: 13, 128, 76;
+  --green-glow: rgba(13, 128, 76, 0.3);
+
+  --text: #1a212b;           /* 15.11 */
+  --text-strong: #0b0f14;    /* 17.93 */
+  --muted: #53637a;          /*  5.71 */
+  --muted-dim: #627188;      /*  4.62 */
+
+  --amber: #956704;          /*  4.64 */
+  --amber-rgb: 149, 103, 4;
+  --red: #c0362f;            /*  5.14 */
+  --red-rgb: 192, 54, 47;
+}

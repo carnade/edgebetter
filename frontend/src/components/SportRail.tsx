@@ -1,6 +1,7 @@
 /** The thin line of sports at the very top. Nothing sits above it. */
 import { NavLink } from "react-router-dom";
 import type { OddsStatus } from "../lib/api";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 const SPORTS = [
   { key: "mlb", label: "BASEBALL" },
@@ -28,6 +29,7 @@ export function SportRail({ odds }: { odds?: OddsStatus }) {
           {s.label}
         </NavLink>
       ))}
+      <ThemeSwitch />
       <div className="rail-status" title={odds?.reason}>
         <span className={`rail-dot ${dot}`} />
         {label}
