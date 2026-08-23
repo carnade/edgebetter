@@ -42,6 +42,18 @@ REMOTE_DIR="$(env_value REMOTE_DIR /share/Container/edgebetter)"
 
 command -v ssh >/dev/null 2>&1 || die "ssh is not installed"
 
+# Checked here rather than left to restore.sh at the end, so a stack that is down costs a
+# message instead of a completed download. The natural instinct is to refresh the data
+# before starting anything, and that order does not work: the restore needs a database to
+# restore into.
+if ! docker compose "${DEV_FILES[@]}" ps --status running --services 2>/dev/null | grep -qx db; then
+  c_red "The local database is not running, so there is nowhere to restore to."
+  c_dim "  Start the stack first, then pull:"
+  c_dim "      ./scripts/start_dev.sh"
+  c_dim "      ./scripts/pull_remote.sh"
+  exit 1
+fi
+
 c_dim "Remote: $REMOTE_HOST:$REMOTE_DIR"
 
 # BatchMode keeps this from hanging on a password prompt inside a script; if key auth is

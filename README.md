@@ -252,10 +252,18 @@ Once the NAS is the machine collecting data, development on the laptop wants a c
 what it has gathered. Set `REMOTE_HOST` in `.env` and pull it down:
 
 ```bash
+./scripts/start_dev.sh               # first — the restore needs a database to restore into
+./scripts/pull_remote.sh             # then refresh from the live host
+```
+
+```bash
 ./scripts/pull_remote.sh --check     # verify SSH and that the remote db is up
-./scripts/pull_remote.sh             # dump the remote database and restore it here
 ./scripts/pull_remote.sh --keep      # download only, restore later
 ```
+
+That order is the opposite of the instinct to refresh data before starting anything, so
+`pull_remote.sh` checks for a running local database up front and says so rather than
+downloading a dump it cannot use.
 
 **Do not point `DATABASE_URL` at the live database instead.** `backend/entrypoint.sh` runs
 `alembic upgrade head` on every boot, so starting a dev stack against it while on a branch
