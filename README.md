@@ -89,6 +89,30 @@ cp .env.example .env                   # then add THE_ODDS_API_KEY and the DB pa
 
 `.env` is gitignored, so it is the one thing a clone will not bring with it.
 
+### Developing against the live data
+
+Once the NAS is the machine collecting data, development on the laptop wants a copy of
+what it has gathered. Set `REMOTE_HOST` in `.env` and pull it down:
+
+```bash
+./scripts/pull_remote.sh --check     # verify SSH and that the remote db is up
+./scripts/pull_remote.sh             # dump the remote database and restore it here
+./scripts/pull_remote.sh --keep      # download only, restore later
+```
+
+**Do not point `DATABASE_URL` at the live database instead.** `backend/entrypoint.sh` runs
+`alembic upgrade head` on every boot, so starting a dev stack against it while on a branch
+carrying a new migration would rewrite the production schema before you ran a command.
+Development also means experiments and the occasional destructive CLI run, and prop lines
+are the one thing here that cannot be re-fetched — there is no historical feed for them.
+
+So data flows one way, live host to laptop, and code flows the other way through git:
+
+```
+   NAS ──(pull_remote.sh)──►  laptop        data
+   NAS  ◄──(git pull)─────── GitHub ◄── laptop      code
+```
+
 The app runs without an odds API key: stats, ratings, and projections all work, and the
 UI says plainly that edges need a key.
 
