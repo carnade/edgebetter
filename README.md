@@ -151,6 +151,31 @@ cat .env | ssh admin@<nas-ip> 'cat > /share/Container/edgebetter/.env'
 Then on the NAS, set a real `POSTGRES_PASSWORD`, and leave `REMOTE_HOST` blank — this
 machine *is* the live stack.
 
+**Set the password before the first start, not after.** Postgres reads
+`POSTGRES_PASSWORD` only when initialising an empty data directory. Once the volume
+exists it holds the password and the variable is ignored, so changing it later does not
+change the database — it only stops the app connecting. Nothing warns you; the api simply
+fails its healthcheck.
+
+You do not need to touch `DATABASE_URL`: `docker-compose.yml` builds the containers' URL
+from `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` and overrides that line.
+
+If you do start it first and then change the password, either fix the database to match:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db \
+  psql -U edgebetter -d edgebetter -c "ALTER USER edgebetter WITH PASSWORD 'newpassword';"
+```
+
+or, if it holds nothing you want yet, discard the volume and start again:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
+./scripts/start_prod.sh
+```
+
+`down -v` deletes the database. Safe before restoring, and never afterwards.
+
 **4. Start it.** The first build compiles the frontend and can take several minutes on
 NAS hardware, longer on ARM models. That is normal, not a hang.
 
