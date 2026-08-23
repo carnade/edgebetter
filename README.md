@@ -34,7 +34,7 @@ and nothing outside the host needs either port.
 | use it on | the laptop, while working | the NAS, running unattended |
 
 ```bash
-./scripts/start_dev.sh            # development
+./scripts/start_dev.sh            # development (no scheduler — see below)
 ./scripts/start_prod.sh           # production
 ./scripts/start_prod.sh --logs    # ...and follow the logs
 ./scripts/start_dev.sh --down     # stop (the database volume is kept)
@@ -230,6 +230,21 @@ The prop poll runs Tuesdays at 16:00 UTC and is the thing that cannot be caught 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs worker | grep nfl_props
 ```
+
+### Only one machine should be collecting
+
+`start_dev.sh` does not run the scheduler. Both machines authenticate to the Odds API as
+the same account, so they share one monthly quota — but each decides what it can afford by
+reading its own `api_usage` table, and neither can see the other's spending. Run the worker
+in both places and the month goes twice as fast with nothing reporting it.
+
+The live host collects; the laptop reads a copy. `--with-worker` overrides it when you are
+deliberately testing an ingest.
+
+For a stronger guarantee than a default, blank `THE_ODDS_API_KEY` in the laptop's `.env`.
+Every paid call is gated on that key being non-empty, so an empty one makes spending
+impossible rather than merely unscheduled. Everything free — nflverse, ESPN, the models,
+the backtests, the UI — carries on working.
 
 ### Developing against the live data
 
