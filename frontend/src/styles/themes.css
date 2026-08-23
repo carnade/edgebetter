@@ -1,14 +1,74 @@
 /* Palettes. Structure lives in app.css; only colour lives here.
  *
- * Accents are exposed as RGB components as well as hex, because the stylesheet composes
- * them at a dozen different alphas — rgba(var(--green-rgb), 0.08) for a row tint, 0.42 for
- * an active border. Hardcoding those meant a theme could change the text and leave every
- * tint behind, still glowing the old colour.
+ * midnight is the default. The others are kept because they cost nothing at runtime and
+ * a palette is easier to judge against a real table than a swatch. To look at one:
  *
- * Every foreground here is checked against both backgrounds at WCAG AA (4.5:1). That is
- * not decoration: the smallest text in this UI is 8.5px, so none of it qualifies for the
+ *     document.documentElement.dataset.theme = "daylight"   // or slate, terminal
+ *
+ * Accents are exposed as RGB components as well as hex, because the stylesheet composes
+ * them at a dozen different alphas -- rgba(var(--accent-rgb), 0.08) for a row tint, 0.42
+ * for an active border. Hardcoding those meant a theme could change the text and leave
+ * every tint behind, still glowing the old colour.
+ *
+ * Two families, deliberately: --accent is the interface (active tabs, focus, the wordmark,
+ * the ambient glow) and --green/--red/--amber are the data. Green means "this bet is worth
+ * making" and must not move when the identity does.
+ *
+ * Every foreground is checked against both of its backgrounds at WCAG AA (4.5:1). That is
+ * not decoration: the smallest text here is 8.5px, so none of it qualifies for the
  * large-text exemption, and the palette this replaced had its secondary text at 2.89:1.
+ *
+ *     midnight  4.69    slate  4.66    daylight  4.62    terminal  2.77 (archived)
  */
+
+/* ---------------------------------------------------------------- midnight
+ * Deep navy, light blue.
+ *
+ * The default. Chrome in one family, data in another -- and the interface steps sideways
+ * into blue rather than merely draining into grey, so a green number is unmistakably a
+ * statement about a number and never part of the furniture.
+ *
+ * Which is what --accent buys. Blue takes the active tab, the focus ring, the wordmark and
+ * the ambient glow, while green keeps its one job: this bet is worth making. A palette
+ * that had to use a single colour for both would force a choice between a blue interface
+ * and a readable positive edge.
+ */
+:root,
+[data-theme="midnight"] {
+  --bg: #080f1c;
+  --bg-raised: #101a2c;
+  --scrim-rgb: 8, 15, 28;
+  --tint-rgb: 255, 255, 255;
+  --shadow-rgb: 0, 0, 0;
+
+  --surface: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --line-rgb: 132, 164, 205;
+  --line: rgba(132, 164, 205, 0.17);
+  --line-soft: rgba(132, 164, 205, 0.09);
+
+  --green: #3fd68c;          /* 10.23 — still means "value", on every theme */
+  --green-bright: #6cf5ab;   /* 13.96 */
+  --green-dim: #2f8a5e;
+  --green-rgb: 63, 214, 140;
+  --green-glow: rgba(63, 214, 140, 0.35);
+
+  --text: #e4ebf7;           /* 16.00 */
+  --text-strong: #f8fafe;    /* 18.35 */
+  --muted: #9cb0cf;          /*  8.70 */
+  --muted-dim: #7e93b4;      /*  6.13 — the best floor of the four */
+
+  --amber: #f2b53c;          /* 10.45 */
+  --amber-rgb: 242, 181, 60;
+  --red: #ff6f6b;            /*  7.06 */
+  --red-rgb: 255, 111, 107;
+
+  --accent: #58bdf5;         /*  9.14 */
+  --accent-bright: #8ad6ff;  /* 12.00 */
+  --accent-dim: #568ab0;     /*  4.69 — carries the wordmark */
+  --accent-rgb: 88, 189, 245;
+  --accent-glow: rgba(88, 189, 245, 0.35);
+}
 
 /* ---------------------------------------------------------------- slate (default)
  * Neutral chrome, coloured data.
@@ -19,7 +79,6 @@
  * differing from the accent by luminance alone. Neutral slate gives the semantic colours
  * somewhere to land and separates the hierarchy by hue as well as brightness.
  */
-:root,
 [data-theme="slate"] {
   --bg: #0c1116;
   --bg-raised: #141b23;
@@ -152,54 +211,4 @@
   --amber-rgb: 149, 103, 4;
   --red: #c0362f;            /*  5.14 */
   --red-rgb: 192, 54, 47;
-}
-
-
-/* ---------------------------------------------------------------- midnight
- * Deep navy, light blue.
- *
- * The same principle as slate — chrome in one family, data in another — but taking the
- * interface further from the data rather than merely draining it. Slate steps back into
- * grey; this steps sideways into blue, so a green number is unmistakably a statement about
- * a number and never part of the furniture.
- *
- * Which is what --accent buys. Blue takes the active tab, the focus ring, the wordmark and
- * the ambient glow, while green keeps its one job: this bet is worth making. A palette
- * that had to use a single colour for both would force a choice between a blue interface
- * and a readable positive edge.
- */
-[data-theme="midnight"] {
-  --bg: #080f1c;
-  --bg-raised: #101a2c;
-  --scrim-rgb: 8, 15, 28;
-  --tint-rgb: 255, 255, 255;
-  --shadow-rgb: 0, 0, 0;
-
-  --surface: rgba(255, 255, 255, 0.03);
-  --surface-hover: rgba(255, 255, 255, 0.06);
-  --line-rgb: 132, 164, 205;
-  --line: rgba(132, 164, 205, 0.17);
-  --line-soft: rgba(132, 164, 205, 0.09);
-
-  --green: #3fd68c;          /* 10.23 — still means "value", on every theme */
-  --green-bright: #6cf5ab;   /* 13.96 */
-  --green-dim: #2f8a5e;
-  --green-rgb: 63, 214, 140;
-  --green-glow: rgba(63, 214, 140, 0.35);
-
-  --text: #e4ebf7;           /* 16.00 */
-  --text-strong: #f8fafe;    /* 18.35 */
-  --muted: #9cb0cf;          /*  8.70 */
-  --muted-dim: #7e93b4;      /*  6.13 — the best floor of the four */
-
-  --amber: #f2b53c;          /* 10.45 */
-  --amber-rgb: 242, 181, 60;
-  --red: #ff6f6b;            /*  7.06 */
-  --red-rgb: 255, 111, 107;
-
-  --accent: #58bdf5;         /*  9.14 */
-  --accent-bright: #8ad6ff;  /* 12.00 */
-  --accent-dim: #568ab0;     /*  4.69 — carries the wordmark */
-  --accent-rgb: 88, 189, 245;
-  --accent-glow: rgba(88, 189, 245, 0.35);
 }
