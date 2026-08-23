@@ -97,6 +97,39 @@ def _resolve_player_ids(session: Session, season: int) -> dict[str, str]:
     return {name.strip().lower(): pid for name, pid in rows if name}
 
 
+def next_unplayed_week(
+    session: Session, *, within_days: int = 6
+) -> tuple[int, int] | None:
+    """The earliest season/week that still has unplayed games, if it starts soon.
+
+    `within_days` stops the job polling a week that is still a fortnight out. Without it
+    the whole preseason counts week 1 as "next", so a weekly job would buy the same slate
+    repeatedly -- 80 credits each time, for markets most books have not posted yet.
+
+    Polling by week rather than by a rolling date window is what makes a slate arrive
+    whole. An NFL week runs Thursday to Monday and occasionally opens on a Wednesday, so
+    no fixed window anchored to one weekday covers it: a 10-day window from the Thursday
+    before week 1 catches 15 of 16 games and drops the Monday nighter, while the following
+    Thursday catches 15 and drops the opener that has already been played. Widening the
+    window instead spills into the next week and doubles the bill.
+    """
+    from app.models import NflGame
+
+    today = datetime.now(UTC).date()
+    row = session.execute(
+        select(NflGame.season, NflGame.week, NflGame.gameday)
+        .where(NflGame.home_score.is_(None), NflGame.gameday >= today)
+        .order_by(NflGame.gameday)
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    season, week, first_game = row
+    if (first_game - today).days > within_days:
+        return None
+    return (season, week)
+
+
 def poll_nfl_props(
     session: Session,
     *,
@@ -115,15 +148,18 @@ def poll_nfl_props(
         return result
 
     now = datetime.now(UTC)
-    stmt = select(NflGame).where(
-        NflGame.home_score.is_(None),
-        NflGame.gameday >= now.date(),
-        NflGame.gameday <= (now + timedelta(days=lookahead_days)).date(),
-    )
+    stmt = select(NflGame).where(NflGame.home_score.is_(None), NflGame.gameday >= now.date())
+    if week:
+        # An explicit week means the whole week. Applying the rolling window on top would
+        # silently clip games at its far edge -- which is exactly how a slate ends up one
+        # game short without anything looking wrong.
+        stmt = stmt.where(NflGame.week == week)
+    else:
+        stmt = stmt.where(
+            NflGame.gameday <= (now + timedelta(days=lookahead_days)).date()
+        )
     if season:
         stmt = stmt.where(NflGame.season == season)
-    if week:
-        stmt = stmt.where(NflGame.week == week)
     games = session.scalars(stmt.order_by(NflGame.gameday)).all()
 
     if not games:

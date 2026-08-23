@@ -179,11 +179,24 @@ def job_nfl_odds(session) -> int:
 
 
 def job_nfl_props(session) -> int:
-    """Weekly player prop lines. Three markets across ~16 games is 48 credits, so this
-    runs once a week rather than daily."""
-    from app.services.ingest_nfl_props import poll_nfl_props
+    """Weekly player prop lines, polled a whole week at a time.
 
-    return poll_nfl_props(session, dry_run=False).lines_written
+    Five markets across ~16 games is 80 credits, so this runs once a week. It targets the
+    next unplayed week explicitly rather than a rolling date window, because no window
+    anchored to a single weekday covers a Wednesday-to-Monday slate without either
+    dropping a game or spilling into the following week.
+    """
+    from app.services.ingest_nfl_props import next_unplayed_week, poll_nfl_props
+
+    target = next_unplayed_week(session)
+    if target is None:
+        log.info("nfl props: no unplayed games, nothing to poll")
+        return 0
+    season, week = target
+    result = poll_nfl_props(session, season=season, week=week, dry_run=False)
+    if result.truncated:
+        log.warning("nfl props: %s", result.summary())
+    return result.lines_written
 
 
 def job_seed(session) -> int:
@@ -231,11 +244,17 @@ def build_scheduler() -> BlockingScheduler:
             id="nba_enrich",
         )
 
-    # Player props once a week, on Thursday, by which point books have posted most of
-    # the slate. 48 credits a week at three markets.
+    # Player props once a week, on Tuesday. 80 credits a week at five markets.
+    #
+    # Tuesday because an NFL week runs Thursday to Monday, so it is the one day that sits
+    # cleanly between slates: the previous week has finished and the coming one has not
+    # started, which is what lets the job poll a whole week in a single pass. A Thursday
+    # poll would arrive after that week's Thursday-night game -- and after the Wednesday
+    # opener in week 1 -- and those games would never get prop lines at all, with nothing
+    # to show they were missing.
     sched.add_job(
         lambda: _run("nfl_props", job_nfl_props),
-        CronTrigger(day_of_week="thu", hour=16, minute=0),
+        CronTrigger(day_of_week="tue", hour=16, minute=0),
         id="nfl_props",
     )
 
