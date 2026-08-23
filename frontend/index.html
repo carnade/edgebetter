@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#06100c" />
     <title>EdgeBetter</title>
+
+    <!-- Served from frontend/public, which Vite exposes at / in dev and copies into
+         dist/ on build, so these resolve identically behind nginx in production.
+         32px is what a browser tab actually renders; the 512 is kept for high-DPI and
+         for installing to a home screen. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
