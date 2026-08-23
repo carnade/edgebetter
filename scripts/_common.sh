@@ -35,10 +35,27 @@ require_env() {
 
 # Reads a value from .env without sourcing it, so odd characters in the API key or a
 # password cannot be executed as shell.
+#
+# Surrounding whitespace and matching quotes are stripped, because KEY="value" and
+# KEY = value are both things people write in a .env and neither means to include the
+# quotes or the spaces in the value.
 env_value() {
-  local key="$1" default="${2-}" line
-  line="$(grep -E "^${key}=" .env 2>/dev/null | tail -1 || true)"
-  if [[ -z "$line" ]]; then printf '%s' "$default"; else printf '%s' "${line#*=}"; fi
+  local key="$1" default="${2-}" line value
+  line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" .env 2>/dev/null | tail -1 || true)"
+  if [[ -z "$line" ]]; then
+    printf '%s' "$default"
+    return
+  fi
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"   # leading whitespace
+  value="${value%"${value##*[![:space:]]}"}"   # trailing whitespace
+  if [[ ${#value} -ge 2 ]]; then
+    case "$value" in
+      \"*\") value="${value:1:${#value}-2}" ;;
+      \'*\') value="${value:1:${#value}-2}" ;;
+    esac
+  fi
+  printf '%s' "$value"
 }
 
 print_urls() {

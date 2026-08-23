@@ -40,6 +40,16 @@ REMOTE_HOST="$(env_value REMOTE_HOST)"
 REMOTE_DIR="$(env_value REMOTE_DIR /share/Container/edgebetter)"
 [[ -n "$REMOTE_HOST" ]] || die "REMOTE_HOST is not set in .env (e.g. REMOTE_HOST=andreas@nas.local)"
 
+# A value carrying an '=' is a typo rather than a hostname, and the usual one is typing
+# the value after the template's existing '=' to make REMOTE_HOST==user@host. Passed
+# through it becomes an unreachable host and reads like an SSH problem, so name it here.
+if [[ "$REMOTE_HOST" == *=* ]]; then
+  c_red "REMOTE_HOST contains an '=' and cannot be a hostname: $REMOTE_HOST"
+  c_dim "  Check .env for a doubled equals sign, e.g. REMOTE_HOST==user@host"
+  c_dim "  It should read:  REMOTE_HOST=user@host"
+  exit 1
+fi
+
 command -v ssh >/dev/null 2>&1 || die "ssh is not installed"
 
 # Checked here rather than left to restore.sh at the end, so a stack that is down costs a
@@ -66,9 +76,21 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE_HOST" true 2>/dev/null; 
   exit 1
 fi
 
-REMOTE_CHECK="cd '$REMOTE_DIR' 2>/dev/null && docker compose ps --status running --services 2>/dev/null | grep -qx db"
+# A non-interactive ssh session does not read the login profile, and on QTS that leaves a
+# PATH of /usr/bin:/bin:/usr/sbin:/sbin with no docker on it -- Container Station keeps its
+# binaries under /share/<volume>/.qpkg/container-station/bin. The same command run by hand
+# after logging in works, which makes this look like a missing stack rather than a missing
+# PATH. Sourcing the profile is harmless anywhere else.
+REMOTE_ENV='[ -f /etc/profile ] && . /etc/profile >/dev/null 2>&1; :'
+
+REMOTE_CHECK="$REMOTE_ENV; cd '$REMOTE_DIR' 2>/dev/null && docker compose ps --status running --services 2>/dev/null | grep -qx db"
 if ! ssh "$REMOTE_HOST" "$REMOTE_CHECK"; then
-  die "no running 'db' service found in $REMOTE_DIR on $REMOTE_HOST -- set REMOTE_DIR, or start the stack there"
+  c_red "No running 'db' service found in $REMOTE_DIR on $REMOTE_HOST."
+  c_dim "  Check, over ssh, that all of these work:"
+  c_dim "      ssh $REMOTE_HOST 'ls -d $REMOTE_DIR'"
+  c_dim "      ssh $REMOTE_HOST '. /etc/profile; docker compose version'"
+  c_dim "      ssh $REMOTE_HOST '. /etc/profile; cd $REMOTE_DIR && docker compose ps'"
+  exit 1
 fi
 c_grn "Connection OK and the remote database is running."
 
@@ -92,7 +114,7 @@ c_ylw "Dumping the remote database and streaming it here..."
 # there with "subsystem request failed on channel 0". Piping over ssh needs no subsystem
 # and works regardless.
 if ! ssh "$REMOTE_HOST" \
-      "cd '$REMOTE_DIR' && docker compose exec -T db pg_dump -U '$PG_USER' -d '$PG_DB' --clean --if-exists | gzip" \
+      "$REMOTE_ENV; cd '$REMOTE_DIR' && docker compose exec -T db pg_dump -U '$PG_USER' -d '$PG_DB' --clean --if-exists | gzip" \
       > "$TMP"; then
   rm -f "$TMP"
   die "remote dump failed -- nothing was written"
