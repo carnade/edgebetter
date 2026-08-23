@@ -37,7 +37,7 @@ require_docker
 require_env
 
 REMOTE_HOST="$(env_value REMOTE_HOST)"
-REMOTE_DIR="$(env_value REMOTE_DIR /share/edgebetter)"
+REMOTE_DIR="$(env_value REMOTE_DIR /share/Container/edgebetter)"
 [[ -n "$REMOTE_HOST" ]] || die "REMOTE_HOST is not set in .env (e.g. REMOTE_HOST=andreas@nas.local)"
 
 command -v ssh >/dev/null 2>&1 || die "ssh is not installed"

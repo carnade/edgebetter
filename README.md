@@ -116,46 +116,43 @@ git --version
 - `git` not found: install it via Entware (`opkg install git git-http`), or clone on the
   laptop and copy the folder across with `scp -r`.
 
-**2. Choose a directory on a data volume.** Not `/root`, `/tmp`, or anywhere on the OS
-partition — those are small and do not survive a firmware update.
+**2. Clone into a data volume.** Not `/root`, `/tmp`, or anywhere on the OS partition —
+those are small and do not survive a firmware update. `/share/Container` is where Container
+Station keeps its stacks, so alongside them is the natural home:
 
 ```bash
-mkdir -p /share/edgebetter && cd /share/edgebetter
-```
-
-`/share/edgebetter` is what `REMOTE_DIR` defaults to in `pull_remote.sh`. Use something
-else and set `REMOTE_DIR` to match.
-
-**3. Clone.**
-
-```bash
-git clone git@github.com:carnade/edgebetter.git .
+cd /share/Container
+git clone git@github.com:carnade/edgebetter.git
+cd edgebetter
 ```
 
 HTTPS is fine too; SSH needs a deploy key on the NAS.
 
-**4. Bring `.env` across.** It is gitignored, holds the API key and database password, and
+`/share/Container/edgebetter` is what `REMOTE_DIR` defaults to in `pull_remote.sh`. Clone
+somewhere else and set `REMOTE_DIR` to match.
+
+**3. Bring `.env` across.** It is gitignored, holds the API key and database password, and
 is the one file the clone will not bring. From the laptop:
 
 ```bash
-scp .env admin@<nas-ip>:/share/edgebetter/.env
+scp .env admin@<nas-ip>:/share/Container/edgebetter/.env
 ```
 
 Then on the NAS, set a real `POSTGRES_PASSWORD`, and leave `REMOTE_HOST` blank — this
 machine *is* the live stack.
 
-**5. Start it.** The first build compiles the frontend and can take several minutes on
+**4. Start it.** The first build compiles the frontend and can take several minutes on
 NAS hardware, longer on ARM models. That is normal, not a hang.
 
 ```bash
 ./scripts/start_prod.sh
 ```
 
-**6. Restore the data.** From the laptop:
+**5. Restore the data.** From the laptop:
 
 ```bash
 ./scripts/backup.sh                                    # take a fresh one first
-scp backups/edgebetter-<stamp>.sql.gz admin@<nas-ip>:/share/edgebetter/backups/
+scp backups/edgebetter-<stamp>.sql.gz admin@<nas-ip>:/share/Container/edgebetter/backups/
 ```
 
 Then on the NAS:
@@ -164,7 +161,7 @@ Then on the NAS:
 ./scripts/restore.sh backups/edgebetter-<stamp>.sql.gz
 ```
 
-**7. Verify.**
+**6. Verify.**
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps    # four services up
@@ -176,7 +173,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 
 Then open `http://<nas-ip>:5174` from any machine on the network.
 
-**8. Enable SSH pull from the laptop** (optional, for development later):
+**7. Enable SSH pull from the laptop** (optional, for development later):
 
 ```bash
 ssh-copy-id admin@<nas-ip>        # run on the laptop
