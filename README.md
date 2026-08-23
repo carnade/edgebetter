@@ -89,6 +89,109 @@ cp .env.example .env                   # then add THE_ODDS_API_KEY and the DB pa
 
 `.env` is gitignored, so it is the one thing a clone will not bring with it.
 
+### QNAP deployment, step by step
+
+Written for QTS. Models and Container Station versions differ, so each step says what to
+check rather than assuming — the three preflight checks exist to find blockers in the
+first minute rather than halfway through.
+
+**Before connecting.** Control Panel → Telnet / SSH → enable SSH, and note the port.
+
+```bash
+ssh admin@<nas-ip>            # or your own account
+```
+
+**1. Preflight.** All three must pass before anything else is worth doing.
+
+```bash
+docker --version              # Container Station provides this
+docker compose version        # must be v2 — "docker-compose" v1 will not work
+git --version
+```
+
+- `docker` not found: Container Station is not installed, or its binaries are not on the
+  SSH PATH. Try `source /etc/profile`, or use the full path Container Station reports.
+- `docker compose` missing while `docker-compose` exists: that is v1. Update Container
+  Station; the scripts and the production overlay both assume v2.
+- `git` not found: install it via Entware (`opkg install git git-http`), or clone on the
+  laptop and copy the folder across with `scp -r`.
+
+**2. Choose a directory on a data volume.** Not `/root`, `/tmp`, or anywhere on the OS
+partition — those are small and do not survive a firmware update.
+
+```bash
+mkdir -p /share/edgebetter && cd /share/edgebetter
+```
+
+`/share/edgebetter` is what `REMOTE_DIR` defaults to in `pull_remote.sh`. Use something
+else and set `REMOTE_DIR` to match.
+
+**3. Clone.**
+
+```bash
+git clone git@github.com:carnade/edgebetter.git .
+```
+
+HTTPS is fine too; SSH needs a deploy key on the NAS.
+
+**4. Bring `.env` across.** It is gitignored, holds the API key and database password, and
+is the one file the clone will not bring. From the laptop:
+
+```bash
+scp .env admin@<nas-ip>:/share/edgebetter/.env
+```
+
+Then on the NAS, set a real `POSTGRES_PASSWORD`, and leave `REMOTE_HOST` blank — this
+machine *is* the live stack.
+
+**5. Start it.** The first build compiles the frontend and can take several minutes on
+NAS hardware, longer on ARM models. That is normal, not a hang.
+
+```bash
+./scripts/start_prod.sh
+```
+
+**6. Restore the data.** From the laptop:
+
+```bash
+./scripts/backup.sh                                    # take a fresh one first
+scp backups/edgebetter-<stamp>.sql.gz admin@<nas-ip>:/share/edgebetter/backups/
+```
+
+Then on the NAS:
+
+```bash
+./scripts/restore.sh backups/edgebetter-<stamp>.sql.gz
+```
+
+**7. Verify.**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps    # four services up
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5174/      # 200
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T db psql -U edgebetter -d edgebetter -tAc \
+  'SELECT count(*) FROM nfl_player_games;'                            # 107252
+```
+
+Then open `http://<nas-ip>:5174` from any machine on the network.
+
+**8. Enable SSH pull from the laptop** (optional, for development later):
+
+```bash
+ssh-copy-id admin@<nas-ip>        # run on the laptop
+```
+
+and set `REMOTE_HOST=admin@<nas-ip>` in the laptop's `.env`.
+
+### What to check after the first week
+
+The prop poll runs Tuesdays at 16:00 UTC and is the thing that cannot be caught up on:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs worker | grep nfl_props
+```
+
 ### Developing against the live data
 
 Once the NAS is the machine collecting data, development on the laptop wants a copy of
