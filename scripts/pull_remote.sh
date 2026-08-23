@@ -74,6 +74,11 @@ TMP="${OUT}.partial"
 c_ylw "Dumping the remote database and streaming it here..."
 # Dumped inside the remote container and gzipped on that side, so only compressed bytes
 # cross the network. The remote database is only ever read.
+#
+# Deliberately plain ssh with a command rather than scp or rsync. OpenSSH 9.0 switched scp
+# to the SFTP protocol, and QTS does not enable the SFTP subsystem by default, so scp fails
+# there with "subsystem request failed on channel 0". Piping over ssh needs no subsystem
+# and works regardless.
 if ! ssh "$REMOTE_HOST" \
       "cd '$REMOTE_DIR' && docker compose exec -T db pg_dump -U '$PG_USER' -d '$PG_DB' --clean --if-exists | gzip" \
       > "$TMP"; then

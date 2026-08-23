@@ -135,7 +135,17 @@ somewhere else and set `REMOTE_DIR` to match.
 is the one file the clone will not bring. From the laptop:
 
 ```bash
-scp .env admin@<nas-ip>:/share/Container/edgebetter/.env
+scp -O .env admin@<nas-ip>:/share/Container/edgebetter/.env
+```
+
+The `-O` is not optional on QTS. OpenSSH 9.0 switched `scp` to the SFTP protocol, and
+QNAP's SSH server does not enable the SFTP subsystem by default, so a plain `scp` fails
+with `subsystem request failed on channel 0` after authenticating. `-O` forces the legacy
+SCP protocol. Two alternatives if you prefer: enable SFTP on the NAS (Control Panel →
+Network & File Services → FTP), or pipe over plain ssh, which never involves a subsystem:
+
+```bash
+cat .env | ssh admin@<nas-ip> 'cat > /share/Container/edgebetter/.env'
 ```
 
 Then on the NAS, set a real `POSTGRES_PASSWORD`, and leave `REMOTE_HOST` blank — this
@@ -152,10 +162,17 @@ NAS hardware, longer on ARM models. That is normal, not a hang.
 
 ```bash
 ./scripts/backup.sh                                    # take a fresh one first
-scp backups/edgebetter-<stamp>.sql.gz admin@<nas-ip>:/share/Container/edgebetter/backups/
+scp -O backups/edgebetter-<stamp>.sql.gz admin@<nas-ip>:/share/Container/edgebetter/backups/
 ```
 
-Then on the NAS:
+`backups/` is gitignored, so a fresh clone does not contain it and the copy above will
+fail with "No such file or directory". Create it on the NAS first:
+
+```bash
+mkdir -p /share/Container/edgebetter/backups
+```
+
+Then, on the NAS, restore:
 
 ```bash
 ./scripts/restore.sh backups/edgebetter-<stamp>.sql.gz
